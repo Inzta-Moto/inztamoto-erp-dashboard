@@ -7913,14 +7913,159 @@ $("#reportYearFilter").addEventListener("change", (e) => {
    renderReports();
 });
 
+const REPORT_TITLES = {
+   sales: "LAPORAN PENJUALAN",
+   profit: "LAPORAN KEUNTUNGAN",
+   production: "LAPORAN PRODUKSI",
+   inventory: "LAPORAN INVENTARIS",
+   bestseller: "LAPORAN PRODUK TERLARIS",
+};
+
+const REPORT_STATUS_LABELS = {
+   active: "Aktif",
+   in_production: "Dalam Produksi",
+   pre_order: "Pre Order",
+   low_stock: "Stok Rendah",
+   out_of_stock: "Habis",
+   inactive: "Nonaktif",
+   pending: "Pending",
+   in_progress: "Dalam Proses",
+   qc: "Quality Control",
+   completed: "Selesai",
+};
+
+function getReportPeriodText(period, month, year, date) {
+   const fmtDate = (d) =>
+      new Date(d).toLocaleDateString("id-ID", {
+         day: "numeric",
+         month: "long",
+         year: "numeric",
+      });
+   if (period === "daily") return fmtDate(date || today);
+   if (period === "weekly") {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      return `${fmtDate(start)} - ${fmtDate(today)}`;
+   }
+   if (period === "yearly") return year === "all" ? "Semua Tahun" : `Tahun ${year}`;
+   const monthLabel =
+      month === "all"
+         ? "Semua Bulan"
+         : (MONTH_OPTIONS.find((m) => m.value === month) || {}).label || month;
+   return year === "all" ? `${monthLabel} (Semua Tahun)` : `${monthLabel} ${year}`;
+}
+
+// Kolom: { header, fmt: "text" | "int" | "rp" | "pct", align }. Baris total opsional.
+function buildReportWorksheet(worksheet, { title, info, summary, columns, rows, totals }) {
+   const thin = { style: "thin" };
+   const fullBorder = { top: thin, left: thin, bottom: thin, right: thin };
+   const numFmtOf = (fmt) =>
+      fmt === "rp" ? "\"Rp\" #,##0" : fmt === "int" ? "#,##0" : fmt === "pct" ? "0%" : undefined;
+   const alignOf = (col) =>
+      col.align || (col.fmt === "rp" ? "right" : col.fmt === "text" ? "left" : "center");
+
+   worksheet.getCell("A1").value = title;
+   worksheet.getCell("A1").font = { name: "Arial", size: 16, bold: true, color: { argb: "FF2B2B2B" } };
+
+   let r = 3;
+   info.forEach(([label, value]) => {
+      worksheet.getCell(`A${r}`).value = label;
+      worksheet.getCell(`A${r}`).font = { name: "Arial", size: 10, bold: true };
+      worksheet.getCell(`B${r}`).value = ": " + value;
+      r++;
+   });
+
+   if (summary && summary.length) {
+      r++;
+      worksheet.getCell(`A${r}`).value = "RINGKASAN";
+      worksheet.getCell(`A${r}`).font = { name: "Arial", size: 11, bold: true };
+      r++;
+      const headRow = worksheet.getRow(r);
+      const valRow = worksheet.getRow(r + 1);
+      headRow.values = summary.map((s) => s.label);
+      valRow.values = summary.map((s) => s.value);
+      headRow.height = 20;
+      valRow.height = 22;
+      headRow.eachCell((cell) => {
+         cell.font = { name: "Arial", size: 10, bold: true };
+         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0E0E0" } };
+         cell.border = fullBorder;
+         cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      });
+      valRow.eachCell((cell, colNum) => {
+         const fmt = summary[colNum - 1].fmt;
+         cell.font = { name: "Arial", size: 10, bold: true };
+         cell.border = fullBorder;
+         cell.alignment = { horizontal: fmt === "rp" ? "right" : "center", vertical: "middle" };
+         if (numFmtOf(fmt)) cell.numFmt = numFmtOf(fmt);
+      });
+      r += 2;
+   }
+
+   r++;
+   const headerRowNum = r;
+   const header = worksheet.getRow(headerRowNum);
+   header.values = columns.map((c) => c.header);
+   header.height = 26;
+   header.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2C94C" } };
+      cell.font = { name: "Arial", size: 10, bold: true };
+      cell.border = fullBorder;
+      cell.alignment = { vertical: "middle", horizontal: "center" };
+   });
+
+   rows.forEach((values) => {
+      const row = worksheet.addRow(values);
+      row.height = 20;
+      columns.forEach((col, i) => {
+         const cell = row.getCell(i + 1);
+         cell.font = { name: "Arial", size: 10 };
+         cell.border = fullBorder;
+         cell.alignment = { vertical: "middle", horizontal: alignOf(col) };
+         if (numFmtOf(col.fmt)) cell.numFmt = numFmtOf(col.fmt);
+      });
+   });
+
+   if (totals) {
+      const totalRow = worksheet.addRow(totals);
+      totalRow.height = 24;
+      columns.forEach((col, i) => {
+         const cell = totalRow.getCell(i + 1);
+         cell.font = { name: "Arial", size: 10, bold: true };
+         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE57F" } };
+         cell.border = { top: { style: "double" }, bottom: { style: "double" }, left: thin, right: thin };
+         cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : alignOf(col) };
+         if (i > 0 && numFmtOf(col.fmt)) cell.numFmt = numFmtOf(col.fmt);
+      });
+   }
+
+   worksheet.views = [{ state: "frozen", ySplit: headerRowNum }];
+   // Lebar kolom dihitung dari tabel saja, supaya judul panjang di A1 tidak melebarkan kolom A.
+   columns.forEach((col, i) => {
+      const column = worksheet.getColumn(i + 1);
+      let maxLen = String(col.header).length;
+      column.eachCell({ includeEmpty: false }, (cell) => {
+         if (cell.row < headerRowNum) return;
+         let len = cell.value == null ? 0 : String(cell.value).length;
+         if (col.fmt === "rp") len += 6;
+         if (len > maxLen) maxLen = len;
+      });
+      column.width = Math.min(Math.max(maxLen + 4, 12), 60);
+   });
+}
+
 $("#exportCsvBtn").addEventListener("click", () => {
+   if (typeof ExcelJS === "undefined") {
+      toast("Library Excel belum termuat, coba lagi sebentar", "error");
+      return;
+   }
    const type = $("#reportType").value;
    const period = $("#reportPeriod") ? $("#reportPeriod").value : (state.report.period || "monthly");
    state.report.period = period;
    const { month, year, date } = state.report;
-   const rSales = state.sales.filter((s) =>
-      filterByReportPeriod(s.date, period, month, year, date),
-   );
+   const rSales = state.sales
+      .filter((s) => filterByReportPeriod(s.date, period, month, year, date))
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
    const periodLabel =
       period === "daily"
          ? `harian_${date || today}`
@@ -7933,68 +8078,224 @@ $("#exportCsvBtn").addEventListener("click", () => {
          : month !== "all"
          ? `${year}-${month}`
          : year;
-   let csv = "\uFEFF";
+   const periodText = getReportPeriodText(period, month, year, date);
+   const exportDateStr = new Date().toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+   });
+   const sum = (list, fn) => list.reduce((acc, x) => acc + (Number(fn(x)) || 0), 0);
+
+   let columns;
+   let rows;
+   let totals = null;
+   let summary = [];
+   // Laporan produksi & inventaris memakai snapshot data terkini (sama seperti tampilan di layar).
+   let periodInfo = periodText;
+
    if (type === "sales") {
-      csv +=
-         "No Transaksi,Tanggal,Produk,SKU,Qty,Channel,Pendapatan,Keuntungan\n";
-      rSales.forEach((s) => {
-         csv += `"${s.txNumber}","${s.date}","${s.productName}","${s.sku}",${s.quantity},"${normalizeChannelValue(s.channel)}",${getSaleRevenue(s)},${getSaleProfit(s)}\n`;
-      });
+      columns = [
+         { header: "Tanggal", fmt: "text", align: "center" },
+         { header: "No. Transaksi", fmt: "text", align: "center" },
+         { header: "Produk", fmt: "text" },
+         { header: "SKU", fmt: "text" },
+         { header: "Qty", fmt: "int" },
+         { header: "Channel", fmt: "text" },
+         { header: "Pendapatan", fmt: "rp" },
+         { header: "Keuntungan", fmt: "rp" },
+      ];
+      rows = rSales.map((s) => [
+         s.date || "",
+         s.txNumber || "",
+         s.productName || "",
+         s.sku || "",
+         Number(s.quantity || 0),
+         normalizeChannelValue(s.channel) || "-",
+         getSaleRevenue(s),
+         getSaleProfit(s),
+      ]);
+      const totalQty = sum(rSales, (s) => s.quantity);
+      const totalRev = sum(rSales, getSaleRevenue);
+      const totalProfit = sum(rSales, getSaleProfit);
+      totals = ["TOTAL", "", "", "", totalQty, "", totalRev, totalProfit];
+      summary = [
+         { label: "Total Transaksi", value: rSales.length, fmt: "int" },
+         { label: "Total Qty", value: totalQty, fmt: "int" },
+         { label: "Total Pendapatan", value: totalRev, fmt: "rp" },
+         { label: "Total Keuntungan", value: totalProfit, fmt: "rp" },
+      ];
    } else if (type === "profit") {
-      csv += "Produk,Pendapatan,Biaya,Laba,Margin\n";
       const ps = {};
       rSales.forEach((s) => {
          if (!ps[s.productId])
-            ps[s.productId] = {
-               name: s.productName,
-               rev: 0,
-               cost: 0,
-               profit: 0,
-            };
+            ps[s.productId] = { name: s.productName, sku: s.sku, rev: 0, cost: 0, profit: 0 };
          ps[s.productId].rev += getSaleRevenue(s);
          ps[s.productId].cost += (s.costPrice || 0) * (s.quantity || 0);
          ps[s.productId].profit += getSaleProfit(s);
       });
-      Object.values(ps).forEach((p) => {
-         csv += `"${p.name}",${p.rev},${p.cost},${p.profit},${p.rev > 0 ? Math.round((p.profit / p.rev) * 100) : 0}%\n`;
-      });
+      const list = Object.values(ps).sort((a, b) => b.profit - a.profit);
+      columns = [
+         { header: "Produk", fmt: "text" },
+         { header: "SKU", fmt: "text" },
+         { header: "Pendapatan", fmt: "rp" },
+         { header: "Biaya HPP", fmt: "rp" },
+         { header: "Laba", fmt: "rp" },
+         { header: "Margin", fmt: "pct" },
+      ];
+      rows = list.map((p) => [
+         p.name || "",
+         p.sku || "",
+         p.rev,
+         p.cost,
+         p.profit,
+         p.rev > 0 ? p.profit / p.rev : 0,
+      ]);
+      const totalRev = sum(list, (p) => p.rev);
+      const totalCost = sum(list, (p) => p.cost);
+      const totalProfit = sum(list, (p) => p.profit);
+      totals = ["TOTAL", "", totalRev, totalCost, totalProfit, totalRev > 0 ? totalProfit / totalRev : 0];
+
+      // Sama dengan perhitungan kartu statistik di renderReports().
+      const totalProdExp = sum(
+         state.productionPurchases.filter((p) => filterByReportPeriod(p.date, period, month, year, date)),
+         (p) => p.totalCost,
+      );
+      const totalPayrollExp =
+         sum(
+            state.payrolls.filter((p) => {
+               const periodDate = p.period ? `${p.period}-01` : p.paymentDate || "";
+               return filterByReportPeriod(periodDate, period, month, year, date);
+            }),
+            (p) => p.totalPaid,
+         ) +
+         sum(
+            (state.salaryProduksi || []).filter((s) =>
+               filterByReportPeriod(s.periodDate, period, month, year, date),
+            ),
+            (s) => s.grandTotal,
+         );
+      summary = [
+         { label: "Total Pendapatan", value: totalRev, fmt: "rp" },
+         { label: "Total Biaya HPP", value: totalCost, fmt: "rp" },
+         { label: "Laba Penjualan", value: totalProfit, fmt: "rp" },
+         { label: "Belanja Produksi", value: totalProdExp, fmt: "rp" },
+         { label: "Gaji Karyawan", value: totalPayrollExp, fmt: "rp" },
+         { label: "Laba Bersih", value: totalProfit - totalProdExp - totalPayrollExp, fmt: "rp" },
+      ];
    } else if (type === "production") {
-      csv += "Produk,SKU,Target,Selesai,Status,Tanggal\n";
-      state.production.forEach((p) => {
-         csv += `"${p.productName}","${p.sku}",${p.targetQty},${p.completedQty || 0},"${p.status}","${p.date}"\n`;
-      });
+      periodInfo = "Semua data produksi (tidak difilter periode)";
+      columns = [
+         { header: "Produk", fmt: "text" },
+         { header: "SKU", fmt: "text" },
+         { header: "Target", fmt: "int" },
+         { header: "Selesai", fmt: "int" },
+         { header: "Status", fmt: "text", align: "center" },
+         { header: "Tanggal", fmt: "text", align: "center" },
+      ];
+      rows = state.production.map((p) => [
+         p.productName || "",
+         p.sku || "",
+         Number(p.targetQty || 0),
+         Number(p.completedQty || 0),
+         REPORT_STATUS_LABELS[p.status] || p.status || "-",
+         p.date || "",
+      ]);
+      const totalTarget = sum(state.production, (p) => p.targetQty);
+      const totalDone = sum(state.production, (p) => p.completedQty);
+      totals = ["TOTAL", "", totalTarget, totalDone, "", ""];
+      summary = [
+         { label: "Total Order", value: state.production.length, fmt: "int" },
+         { label: "Total Target", value: totalTarget, fmt: "int" },
+         { label: "Total Selesai", value: totalDone, fmt: "int" },
+         { label: "Completion", value: totalTarget > 0 ? totalDone / totalTarget : 0, fmt: "pct" },
+      ];
    } else if (type === "inventory") {
-      csv += "SKU,Produk,Stok,Status,Gambar\n";
-      state.products.forEach((p) => {
-         csv += `"${p.sku}","${p.name}",${p.stock},"${p.status}","${p.images && p.images[0] ? p.images[0].imageUrl : ""}"\n`;
-      });
+      periodInfo = `Stok per ${exportDateStr}`;
+      columns = [
+         { header: "SKU", fmt: "text" },
+         { header: "Produk", fmt: "text" },
+         { header: "Stok", fmt: "int" },
+         { header: "Status", fmt: "text", align: "center" },
+         { header: "Gambar", fmt: "text" },
+      ];
+      rows = state.products.map((p) => [
+         p.sku || "",
+         p.name || "",
+         Number(p.stock || 0),
+         REPORT_STATUS_LABELS[p.status] || p.status || "-",
+         p.images && p.images[0] ? p.images[0].imageUrl : "",
+      ]);
+      const totalStock = sum(state.products, (p) => p.stock);
+      totals = ["TOTAL", "", totalStock, "", ""];
+      summary = [
+         { label: "Total Produk", value: state.products.length, fmt: "int" },
+         { label: "Total Stok", value: totalStock, fmt: "int" },
+         { label: "Stok Rendah", value: state.products.filter((p) => p.status === "low_stock").length, fmt: "int" },
+         { label: "Stok Habis", value: state.products.filter((p) => p.status === "out_of_stock").length, fmt: "int" },
+      ];
    } else {
-      csv += "Produk,SKU,Total Terjual,Pendapatan\n";
       const ps = {};
       rSales.forEach((s) => {
-         if (!ps[s.productId])
-            ps[s.productId] = {
-               name: s.productName,
-               sku: s.sku,
-               qty: 0,
-               rev: 0,
-            };
+         if (!ps[s.productId]) ps[s.productId] = { name: s.productName, sku: s.sku, qty: 0, rev: 0 };
          ps[s.productId].qty += s.quantity || 0;
          ps[s.productId].rev += getSaleRevenue(s);
       });
-      Object.values(ps)
-         .sort((a, b) => b.rev - a.rev)
-         .forEach((p) => {
-            csv += `"${p.name}","${p.sku}",${p.qty},${p.rev}\n`;
-         });
+      const list = Object.values(ps).sort((a, b) => b.rev - a.rev);
+      columns = [
+         { header: "Peringkat", fmt: "int" },
+         { header: "Produk", fmt: "text" },
+         { header: "SKU", fmt: "text" },
+         { header: "Total Terjual", fmt: "int" },
+         { header: "Pendapatan", fmt: "rp" },
+      ];
+      rows = list.map((p, i) => [i + 1, p.name || "", p.sku || "", p.qty, p.rev]);
+      const totalQty = sum(list, (p) => p.qty);
+      const totalRev = sum(list, (p) => p.rev);
+      totals = ["TOTAL", "", "", totalQty, totalRev];
+      summary = [
+         { label: "Jumlah Produk", value: list.length, fmt: "int" },
+         { label: "Total Terjual", value: totalQty, fmt: "int" },
+         { label: "Total Pendapatan", value: totalRev, fmt: "rp" },
+      ];
    }
-   const a = document.createElement("a");
-   a.href = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8;" }),
-   );
-   a.download = `laporan_${type}_${periodLabel}_${today}.csv`;
-   a.click();
-   toast("Laporan di-export ke CSV", "success");
+
+   if (!rows.length) {
+      toast("Tidak ada data laporan untuk di-export pada periode ini", "warning");
+      return;
+   }
+
+   const workbook = new ExcelJS.Workbook();
+   const worksheet = workbook.addWorksheet((REPORT_TITLES[type] || "Laporan").slice(0, 31));
+   buildReportWorksheet(worksheet, {
+      title: REPORT_TITLES[type] || "LAPORAN",
+      info: [
+         ["Periode", periodInfo],
+         ["Tanggal Export", exportDateStr],
+         ["Jumlah Baris", rows.length],
+      ],
+      summary,
+      columns,
+      rows,
+      totals,
+   });
+
+   workbook.xlsx
+      .writeBuffer()
+      .then((buffer) => {
+         const blob = new Blob([buffer], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+         });
+         const a = document.createElement("a");
+         a.href = URL.createObjectURL(blob);
+         a.download = `laporan_${type}_${periodLabel}_${today}.xlsx`;
+         a.click();
+         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+         toast("Laporan di-export ke Excel", "success");
+      })
+      .catch((err) => {
+         console.error("Export laporan gagal:", err);
+         toast("Gagal export laporan", "error");
+      });
 });
 
 /* =========================================================

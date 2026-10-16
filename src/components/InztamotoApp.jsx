@@ -944,7 +944,7 @@ export default function InztamotoApp() {
                            className="btn btn-outline btn-sm"
                            id="exportCsvBtn"
                         >
-                           <i className="fas fa-file-csv"></i>Export CSV
+                           <i className="fas fa-file-excel"></i>Export Excel
                         </button>
                      </div>
                      <div
