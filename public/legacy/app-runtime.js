@@ -192,6 +192,9 @@ const state = {
       listening: false,
       error: "",
       usageMonth: "",
+      usagePage: 1,
+      paymentsPage: 1,
+      perPage: 10,
    },
    pp: { search: "", week: "", status: "all", month: "all", date: new Date().toISOString().split("T")[0], page: 1, perPage: 10 },
    payroll: { search: "", period: "", status: "all", page: 1, perPage: 10 },
@@ -9664,6 +9667,34 @@ function startInvestorListeners() {
    state.listeners.push(unsubAgreement, unsubPayments);
 }
 
+function investorPageSlice(list, page) {
+   var perPage = state.investor.perPage;
+   var totalPages = Math.max(1, Math.ceil(list.length / perPage));
+   var current = Math.min(Math.max(page || 1, 1), totalPages);
+   var start = (current - 1) * perPage;
+   return { items: list.slice(start, start + perPage), page: current, totalPages: totalPages, start: start };
+}
+
+function investorTableFooterHTML(slice, total, noun, onClickFuncName) {
+   if (!total) return "";
+   return (
+      '<div class="table-footer">' +
+      "<span>Menampilkan " + (slice.start + 1) + "\u2013" + Math.min(slice.start + state.investor.perPage, total) + " dari " + total + " " + noun + "</span>" +
+      '<div class="pagination">' + renderPaginationHTML(slice.page, slice.totalPages, onClickFuncName) + "</div>" +
+      "</div>"
+   );
+}
+
+window.goInvestorPaymentsPage = function (page) {
+   state.investor.paymentsPage = page;
+   renderInvestor();
+};
+
+window.goInvestorUsagePage = function (page) {
+   state.investor.usagePage = page;
+   renderInvestor();
+};
+
 window.retryInvestorData = function () {
    state.investor.error = "";
    renderInvestor();
@@ -9736,8 +9767,10 @@ window.renderInvestor = function () {
    var payments = state.investor.payments.slice().sort(function (a, b) {
       return (a.periodMonth || 0) - (b.periodMonth || 0) || String(a.paidDate || "").localeCompare(String(b.paidDate || ""));
    });
+   var paymentsSlice = investorPageSlice(payments, state.investor.paymentsPage);
+   state.investor.paymentsPage = paymentsSlice.page;
    var rows = payments.length
-      ? payments
+      ? paymentsSlice.items
            .map(function (p) {
               var kind = p.kind === "repayment" ? "Pengembalian ke-" + (p.repaymentNumber || "?") : "Komisi";
               var badge = p.kind === "repayment" ? "badge-active" : "badge-pending";
@@ -9769,7 +9802,9 @@ window.renderInvestor = function () {
       '<span style="font-family:monospace">' + fmtRp(paidTotal) + "</span></span></div>" +
       '<div class="table-scroll"><table class="data-table">' +
       "<thead><tr><th>Jenis</th><th>Periode</th><th>Nominal</th><th>Tanggal Transfer</th><th>Catatan</th><th>Aksi</th></tr></thead>" +
-      "<tbody>" + rows + "</tbody></table></div></div>";
+      "<tbody>" + rows + "</tbody></table></div>" +
+      investorTableFooterHTML(paymentsSlice, payments.length, "catatan", "goInvestorPaymentsPage") +
+      "</div>";
 
    container.innerHTML = header + agreementCard + paymentsCard + investorUsageCardHTML();
 };
@@ -9794,8 +9829,10 @@ function investorUsageCardHTML() {
       .filter(function (p) { return typeof p.date === "string" && p.date.slice(0, 7) === month; })
       .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
    var marked = list.filter(function (p) { return p.investorAgreementId; }).length;
+   var usageSlice = investorPageSlice(list, state.investor.usagePage);
+   state.investor.usagePage = usageSlice.page;
    var rows = list.length
-      ? list
+      ? usageSlice.items
            .map(function (p) {
               return (
                  "<tr>" +
@@ -9823,12 +9860,15 @@ function investorUsageCardHTML() {
       "</div></div>" +
       '<div class="table-scroll"><table class="data-table">' +
       "<thead><tr><th>Dana investasi</th><th>Tanggal</th><th>Nama Barang</th><th>Kategori</th><th>Qty</th><th>Total</th></tr></thead>" +
-      "<tbody>" + rows + "</tbody></table></div></div>"
+      "<tbody>" + rows + "</tbody></table></div>" +
+      investorTableFooterHTML(usageSlice, list.length, "belanja", "goInvestorUsagePage") +
+      "</div>"
    );
 }
 
 window.onInvestorUsageMonth = function (month) {
    state.investor.usageMonth = month;
+   state.investor.usagePage = 1;
    renderInvestor();
 };
 
