@@ -191,6 +191,7 @@ const state = {
       paymentsLoaded: false,
       listening: false,
       error: "",
+      usageMonth: "",
    },
    pp: { search: "", week: "", status: "all", month: "all", date: new Date().toISOString().split("T")[0], page: 1, perPage: 10 },
    payroll: { search: "", period: "", status: "all", page: 1, perPage: 10 },
@@ -4755,7 +4756,7 @@ function renderBelanjaProduksi() {
               return `<tr>
           <td>${p.date}</td>
           <td><small style="color:var(--text-muted)">${p.weekKey || ""}</small></td>
-          <td><strong>${p.itemName}</strong></td>
+          <td><strong>${p.itemName}</strong>${p.investorAgreementId ? ' <span class="badge badge-active" style="margin-left:6px;font-size:11px">Dana investasi</span>' : ""}</td>
           <td>${p.category || "-"}</td>
           <td>${fmt(p.quantity)} ${p.unit || ""}</td>
           <td>${fmtRp(p.unitPrice)}</td>
@@ -5096,7 +5097,8 @@ function purchaseFormHTML(p) {
     <div style="padding:10px 14px;background:var(--primary-light);border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px">
       Total: <strong id="fPPTotalDisplay">${fmtRp(v.totalCost)}</strong>
     </div>
-    <div class="form-group"><label>Catatan</label><input type="text" class="form-input" id="fPPNote" value="${v.note || ""}" placeholder="Opsional"></div>`;
+    <div class="form-group"><label>Catatan</label><input type="text" class="form-input" id="fPPNote" value="${v.note || ""}" placeholder="Opsional"></div>
+    ${isInvestorEditor() ? investorFundCheckboxHTML(!!v.investorAgreementId) : ""}`;
 }
 
 window.updatePPWeekKey = function () {
@@ -5114,6 +5116,7 @@ window.calcPPTotal = function () {
 
 // ---- Open Add Modal ----
 window.openAddPurchaseModal = function () {
+   if (isInvestorEditor()) startInvestorListeners();
    openModal(
       "Tambah Belanja Produksi",
       purchaseFormHTML(),
@@ -5148,9 +5151,13 @@ window.savePurchase = async function () {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
    });
+   const investorBox = $("#fPPInvestor");
+   const markInvestor = !!(investorBox && investorBox.checked);
+   if (markInvestor) Object.assign(doc, investorMarkFields());
    try {
       await db.collection("production_purchases").add(doc);
       toast("Belanja dicatat", "success");
+      if (markInvestor) warnIfBeforeEffective(date);
       closeModal();
    } catch (err) {
       toast("Gagal: " + err.message, "error");
@@ -5168,6 +5175,7 @@ window.editPurchase = function (id) {
       toast("Belanja yang sudah ditutup tidak bisa diedit", "warning");
       return;
    }
+   if (isInvestorEditor()) startInvestorListeners();
    openModal(
       "Edit Belanja Produksi",
       purchaseFormHTML(p),
@@ -5203,9 +5211,14 @@ window.saveEditPurchase = async function (id) {
       note: $("#fPPNote") ? $("#fPPNote").value.trim() : "",
       updatedAt: new Date().toISOString(),
    });
+   const investorBox = $("#fPPInvestor");
+   const markInvestor = !!(investorBox && investorBox.checked && !p.investorAgreementId);
+   if (markInvestor) Object.assign(updates, investorMarkFields());
+   if (investorBox && !investorBox.checked && p.investorAgreementId) Object.assign(updates, investorUnmarkFields());
    try {
       await db.collection("production_purchases").doc(id).update(updates);
       toast("Belanja diupdate", "success");
+      if (investorBox && investorBox.checked) warnIfBeforeEffective(date);
       closeModal();
    } catch (err) {
       toast("Gagal: " + err.message, "error");
@@ -5226,6 +5239,7 @@ window.confirmDeletePurchase = function (id) {
        <i class="fas fa-trash" style="font-size:40px;color:var(--danger);opacity:.6;margin-bottom:14px;display:block"></i>
        <p style="font-size:15px;font-weight:600">Hapus "${p.itemName}"?</p>
        <p style="font-size:13px;color:var(--text-muted);margin-top:6px">Total: ${fmtRp(p.totalCost)}</p>
+       ${p.investorAgreementId ? '<p style="font-size:13px;color:var(--warning);margin-top:10px;line-height:1.5">Belanja ini tampil di portal investor sebagai penggunaan dana investasi. Setelah dihapus, belanja ini juga hilang dari portal.</p>' : ""}
      </div>`,
       `<button class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>
      <button class="btn btn-danger btn-sm" onclick="doDeletePurchase('${id}')"><i class="fas fa-trash"></i>Hapus</button>`,
@@ -9525,6 +9539,45 @@ document.addEventListener("click", function (e) {
 
 // Investor portal data (capital.inzta.id). The portal reads investor_agreement/current and investor_payments and
 // ignores any field that is not in its shape, so dates stay "YYYY-MM-DD" and amounts stay whole Rupiah numbers.
+// Belanja Produksi paid from the investment carries the agreement id, not true, so a second investor only changes the value.
+var INVESTOR_AGREEMENT_ID = "current";
+
+function isInvestorEditor() {
+   var role = getCurrentUserRole();
+   return role === "owner" || role === "admin";
+}
+
+function investorMarkFields() {
+   return {
+      investorAgreementId: INVESTOR_AGREEMENT_ID,
+      investorMarkedAt: new Date().toISOString(),
+      investorMarkedBy: auth.currentUser ? auth.currentUser.uid : "",
+   };
+}
+
+function investorUnmarkFields() {
+   var del = firebase.firestore.FieldValue.delete();
+   return { investorAgreementId: del, investorMarkedAt: del, investorMarkedBy: del };
+}
+
+function investorFundCheckboxHTML(checked) {
+   return (
+      '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;cursor:pointer">' +
+      '<input type="checkbox" id="fPPInvestor"' + (checked ? " checked" : "") + ' style="margin-top:2px">' +
+      "<span><strong>Dibayar dari dana investasi</strong><br>" +
+      '<span style="color:var(--text-muted)">Belanja ini tampil di halaman Penggunaan Dana portal investor.</span></span>' +
+      "</label>"
+   );
+}
+
+// Marking an earlier purchase is allowed: the investor may have funded it before the agreement took effect.
+function warnIfBeforeEffective(date) {
+   var effective = state.investor.agreementLoaded ? investorTerms().effectiveDate : null;
+   if (effective && date && date < effective) {
+      toast("Belanja ini bertanggal sebelum Tanggal Efektif (" + investorFmtDate(effective) + "), tetap ditandai.", "warning");
+   }
+}
+
 var INVESTOR_DEFAULTS = {
    termMonths: 24,
    totalInvestment: 200000000,
@@ -9718,7 +9771,80 @@ window.renderInvestor = function () {
       "<thead><tr><th>Jenis</th><th>Periode</th><th>Nominal</th><th>Tanggal Transfer</th><th>Catatan</th><th>Aksi</th></tr></thead>" +
       "<tbody>" + rows + "</tbody></table></div></div>";
 
-   container.innerHTML = header + agreementCard + paymentsCard;
+   container.innerHTML = header + agreementCard + paymentsCard + investorUsageCardHTML();
+};
+
+function investorUsageCardHTML() {
+   var purchases = state.productionPurchases || [];
+   var month = state.investor.usageMonth || investorLocalToday().slice(0, 7);
+   var months = {};
+   months[investorLocalToday().slice(0, 7)] = true;
+   purchases.forEach(function (p) {
+      if (typeof p.date === "string" && p.date.length >= 7) months[p.date.slice(0, 7)] = true;
+   });
+   var options = Object.keys(months)
+      .sort()
+      .reverse()
+      .map(function (m) {
+         var label = investorMonthLabel(m + "-01", 0);
+         return '<option value="' + m + '"' + (m === month ? " selected" : "") + ">" + label + "</option>";
+      })
+      .join("");
+   var list = purchases
+      .filter(function (p) { return typeof p.date === "string" && p.date.slice(0, 7) === month; })
+      .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+   var marked = list.filter(function (p) { return p.investorAgreementId; }).length;
+   var rows = list.length
+      ? list
+           .map(function (p) {
+              return (
+                 "<tr>" +
+                 '<td><input type="checkbox" aria-label="Dibayar dari dana investasi: ' + investorEsc(p.itemName) + '"' +
+                 (p.investorAgreementId ? " checked" : "") +
+                 " onchange=\"toggleInvestorPurchase('" + p.id + "', this.checked)\" style=\"width:18px;height:18px;cursor:pointer\"></td>" +
+                 "<td>" + investorFmtDate(p.date) + "</td>" +
+                 "<td><strong>" + investorEsc(p.itemName) + "</strong></td>" +
+                 "<td>" + (p.category ? investorEsc(p.category) : "-") + "</td>" +
+                 "<td>" + fmt(p.quantity) + " " + investorEsc(p.unit || "") + "</td>" +
+                 '<td style="font-family:monospace;font-weight:600">' + fmtRp(p.totalCost) + "</td>" +
+                 "</tr>"
+              );
+           })
+           .join("")
+      : '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-shopping-basket"></i><h4>Belum ada belanja di bulan ini</h4><p>Belanja dicatat di menu Belanja Produksi</p></div></td></tr>';
+
+   return (
+      '<div class="card" style="height:auto;margin-top:18px">' +
+      '<div class="card-header"><div><h3>Penggunaan Dana Investasi</h3>' +
+      '<p style="font-size:12px;color:var(--text-muted);margin-top:4px">Centang belanja yang dibayar dari dana investasi. Yang dicentang tampil di portal investor sebagai daftar, tanpa total.</p></div>' +
+      '<div style="display:flex;gap:10px;align-items:center">' +
+      '<span style="font-size:13px;color:var(--text-muted)">' + marked + " ditandai</span>" +
+      '<select class="form-input" style="width:auto;min-width:160px" onchange="onInvestorUsageMonth(this.value)">' + options + "</select>" +
+      "</div></div>" +
+      '<div class="table-scroll"><table class="data-table">' +
+      "<thead><tr><th>Dana investasi</th><th>Tanggal</th><th>Nama Barang</th><th>Kategori</th><th>Qty</th><th>Total</th></tr></thead>" +
+      "<tbody>" + rows + "</tbody></table></div></div>"
+   );
+}
+
+window.onInvestorUsageMonth = function (month) {
+   state.investor.usageMonth = month;
+   renderInvestor();
+};
+
+// Only the marker fields change, so a closed week stays locked while the admin can still mark what it funded.
+window.toggleInvestorPurchase = async function (id, checked) {
+   var p = (state.productionPurchases || []).find(function (x) { return x.id === id; });
+   if (!p) return;
+   try {
+      await db.collection("production_purchases").doc(id).update(checked ? investorMarkFields() : investorUnmarkFields());
+      toast(checked ? "Ditandai dibayar dana investasi" : "Tanda dana investasi dibatalkan", "success");
+      if (checked) warnIfBeforeEffective(p.date);
+   } catch (err) {
+      console.error("Gagal menandai belanja investor:", err);
+      toast("Gagal menyimpan: " + err.message, "error");
+      renderInvestor();
+   }
 };
 
 window.openInvestorEffectiveModal = function () {
