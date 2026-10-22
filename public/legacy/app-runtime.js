@@ -29,6 +29,12 @@ const CLOUDINARY_UPLOAD_PRESET =
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Offline cache (spec firestore-read-quota, Fase 1): reopening or refreshing within 30 minutes only reads documents
+// that changed, and extra tabs share the first tab's data, instead of every open re-reading about 3,900 documents of
+// the shared Spark read quota. Without it (private window, another tab holding it) the dashboard works as before.
+db.enablePersistence({ synchronizeTabs: true }).catch(function (err) {
+   console.warn("Firestore offline cache off:", err && err.code);
+});
 
 /* =========================================================
    FLAG MENCEGAH DOBLE INIT
@@ -153,6 +159,7 @@ const state = {
    sponsorships: [],
    resellers: [],
    users: [],
+   lazyListening: {},
    currentPage: "dashboard",
    prod: {
       search: "",
@@ -621,6 +628,7 @@ function cleanupAppSession() {
       } catch (e) {}
    });
    state.listeners = [];
+   state.lazyListening = {};
    state.investor.listening = false;
    appInitialized = false;
    state.user = null;
@@ -654,8 +662,26 @@ $("#logoutBtn").addEventListener("click", async () => {
       console.error("logout error:", err);
       toast(err.message || "Gagal keluar", "error");
       showLoginScreen();
+      return;
    }
+   await clearOfflineCacheAndReload();
 });
+
+// Who else uses a device is unknown (D-1), so a logout leaves no copy of the data in the browser. clearPersistence
+// needs a terminated instance, which cannot be reused, so the page reloads into the login screen.
+async function clearOfflineCacheAndReload() {
+   try {
+      await db.terminate();
+      await db.clearPersistence();
+   } catch (err) {
+      // failed-precondition: another open tab still uses the cache; it is cleared on a later logout.
+      console.warn("Firestore offline cache not cleared:", err && err.code);
+   }
+   try {
+      sessionStorage.setItem("inztamoto_logged_out", "1");
+   } catch (e) {}
+   window.location.reload();
+}
 
 function enterApp() {
    if (appInitialized) return;
@@ -782,21 +808,6 @@ function initFirebaseListeners() {
       );
    state.listeners.push(unsubProdOrder);
 
-   const unsubSM = db
-      .collection("stock_movements")
-      .orderBy("date", "desc")
-      .onSnapshot(
-         (snap) => {
-            state.stockMovements = snap.docs.map((d) => ({
-               id: d.id,
-               ...d.data(),
-            }));
-            renderCurrentPage();
-         },
-         (err) => console.error("Stock movements listener error:", err),
-      );
-   state.listeners.push(unsubSM);
-
    const unsubPP = db
       .collection("production_purchases")
       .orderBy("date", "desc")
@@ -842,42 +853,6 @@ function initFirebaseListeners() {
       );
    state.listeners.push(unsubSalaryProd);
 
-   // ---- Support Sponsorship ----
-   const unsubSponsorship = db
-      .collection("sponsorships")
-      .orderBy("eventDate", "desc")
-      .onSnapshot(
-         function (snap) {
-            state.sponsorships = snap.docs.map(function (d) {
-               return Object.assign({ id: d.id }, d.data());
-            });
-            if (state.currentPage === "sponsorship") renderSponsorship();
-         },
-         function (err) {
-            console.error("Sponsorship listener error:", err);
-         },
-      );
-   state.listeners.push(unsubSponsorship);
-
-   const unsubUsers = db.collection("users").onSnapshot(
-      (snap) => {
-         state.users = snap.docs.map((d) => {
-            const data = d.data();
-            // doc ID bisa berupa UID atau email — pastikan email tersedia
-            return {
-               id: d.id,
-               name:
-                  data.name || (data.email ? data.email.split("@")[0] : d.id),
-               email: data.email || d.id,
-               role: data.role || "User",
-               status: data.status || "Aktif",
-            };
-         });
-         if (state.currentPage === "pengguna") renderUsers();
-      },
-      (err) => console.error("Users listener error:", err),
-   );
-   state.listeners.push(unsubUsers);
 
    const unsubReseller = db
       .collection("resellers")
@@ -893,6 +868,76 @@ function initFirebaseListeners() {
    state.listeners.push(unsubReseller);
 
    seedIfEmpty();
+}
+
+// Spec firestore-read-quota, Fase 2: these collections are used only by their own page, so they are read when that
+// page is first opened instead of at every login (about 1,600 reads saved when Stock Control stays closed).
+const LAZY_LISTENERS = {
+   stock_movements: function () {
+      return db
+         .collection("stock_movements")
+         .orderBy("date", "desc")
+         .onSnapshot(
+            (snap) => {
+               state.stockMovements = snap.docs.map((d) => ({
+                  id: d.id,
+                  ...d.data(),
+               }));
+               renderCurrentPage();
+            },
+            (err) => console.error("Stock movements listener error:", err),
+         );
+   },
+   sponsorships: function () {
+      return db
+         .collection("sponsorships")
+         .orderBy("eventDate", "desc")
+         .onSnapshot(
+            function (snap) {
+               state.sponsorships = snap.docs.map(function (d) {
+                  return Object.assign({ id: d.id }, d.data());
+               });
+               if (state.currentPage === "sponsorship") renderSponsorship();
+            },
+            function (err) {
+               console.error("Sponsorship listener error:", err);
+            },
+         );
+   },
+   users: function () {
+      return db.collection("users").onSnapshot(
+         (snap) => {
+            state.users = snap.docs.map((d) => {
+               const data = d.data();
+               // doc ID bisa berupa UID atau email — pastikan email tersedia
+               return {
+                  id: d.id,
+                  name:
+                     data.name || (data.email ? data.email.split("@")[0] : d.id),
+                  email: data.email || d.id,
+                  role: data.role || "User",
+                  status: data.status || "Aktif",
+               };
+            });
+            if (state.currentPage === "pengguna") renderUsers();
+         },
+         (err) => console.error("Users listener error:", err),
+      );
+   },
+};
+
+const LAZY_LISTENERS_BY_PAGE = {
+   inventaris: ["stock_movements"],
+   sponsorship: ["sponsorships"],
+   pengguna: ["users"],
+};
+
+function ensureListenersForPage(page) {
+   (LAZY_LISTENERS_BY_PAGE[page] || []).forEach(function (name) {
+      if (state.lazyListening[name]) return;
+      state.lazyListening[name] = true;
+      state.listeners.push(LAZY_LISTENERS[name]());
+   });
 }
 
 function renderCurrentPage() {
@@ -1060,6 +1105,7 @@ function navigateTo(page) {
       page = "dashboard";
    }
    updateNavigationAccess();
+   ensureListenersForPage(page);
    state.currentPage = page;
    $$(".page").forEach((p) => p.classList.remove("active"));
    const el = $("#page" + page.charAt(0).toUpperCase() + page.slice(1));
@@ -10302,6 +10348,13 @@ window.renderResellerAnalytics = function (list) {
 };
 
 showAuthLoading();
+
+try {
+   if (sessionStorage.getItem("inztamoto_logged_out")) {
+      sessionStorage.removeItem("inztamoto_logged_out");
+      logoutToastPending = true;
+   }
+} catch (e) {}
 
 auth.onAuthStateChanged(async (user) => {
    if (!user) {
