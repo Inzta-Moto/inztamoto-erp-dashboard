@@ -196,6 +196,9 @@ export default function InztamotoApp() {
                   <a href="#" className="nav-item" data-page="reseller" id="menuReseller">
                      <i className="fas fa-user-tag"></i>Reseller
                   </a>
+                  <a href="#" className="nav-item" data-page="investor" id="menuInvestor">
+                     <i className="fas fa-hand-holding-dollar"></i>Investor
+                  </a>
                   <a href="#" className="nav-item" data-page="produksi">
                      <i className="fas fa-industry"></i>Produksi
                   </a>
@@ -699,6 +702,11 @@ export default function InztamotoApp() {
                   {/* Reseller Management */}
                   <div className="page" id="pageReseller">
                      {/* Rendered dynamically by renderResellers() in app-runtime.js */}
+                  </div>
+
+                  {/* Investor: Tanggal Efektif and payments shown in the investor portal */}
+                  <div className="page" id="pageInvestor">
+                     {/* Rendered dynamically by renderInvestor() in app-runtime.js */}
                   </div>
 
                   {/* Inventaris */}
