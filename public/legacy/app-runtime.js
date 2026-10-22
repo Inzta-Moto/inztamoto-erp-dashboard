@@ -184,6 +184,14 @@ const state = {
       page: 1,
       perPage: 10,
    },
+   investor: {
+      agreement: null,
+      agreementLoaded: false,
+      payments: [],
+      paymentsLoaded: false,
+      listening: false,
+      error: "",
+   },
    pp: { search: "", week: "", status: "all", month: "all", date: new Date().toISOString().split("T")[0], page: 1, perPage: 10 },
    payroll: { search: "", period: "", status: "all", page: 1, perPage: 10 },
    salaryProd: { search: "", month: "all", year: "all", page: 1, perPage: 8 },
@@ -609,6 +617,7 @@ function cleanupAppSession() {
       } catch (e) {}
    });
    state.listeners = [];
+   state.investor.listening = false;
    appInitialized = false;
    state.user = null;
 }
@@ -695,6 +704,9 @@ function updateNavigationAccess() {
    const resellerMenu = $("#menuReseller");
    if (resellerMenu)
       resellerMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   const investorMenu = $("#menuInvestor");
+   if (investorMenu)
+      investorMenu.style.display = isOwnerOrAdmin ? "" : "none";
 }
 
 /* =========================================================
@@ -914,6 +926,9 @@ function renderCurrentPage() {
       case "reseller":
          renderResellers();
          break;
+      case "investor":
+         renderInvestor();
+         break;
    }
 }
 
@@ -996,6 +1011,7 @@ const TITLES = {
    salaryProduksi: "Salary Produksi",
    sponsorship: "Support Sponsorship",
    reseller: "Reseller Management",
+   investor: "Investor",
 };
 
 function navigateTo(page) {
@@ -1028,6 +1044,15 @@ function navigateTo(page) {
       _roleForReseller !== "admin"
    ) {
       toast("Akses Reseller Management hanya untuk Owner atau Admin", "error");
+      page = "dashboard";
+   }
+   const _roleForInvestor = getCurrentUserRole();
+   if (
+      page === "investor" &&
+      _roleForInvestor !== "owner" &&
+      _roleForInvestor !== "admin"
+   ) {
+      toast("Akses Investor hanya untuk Owner atau Admin", "error");
       page = "dashboard";
    }
    updateNavigationAccess();
@@ -9497,6 +9522,412 @@ document.addEventListener("click", function (e) {
       exportResellerSales();
    }
 });
+
+// Investor portal data (capital.inzta.id). The portal reads investor_agreement/current and investor_payments and
+// ignores any field that is not in its shape, so dates stay "YYYY-MM-DD" and amounts stay whole Rupiah numbers.
+var INVESTOR_DEFAULTS = {
+   termMonths: 24,
+   totalInvestment: 200000000,
+   commissionRateBasisPoints: 320,
+   repaymentDueMonths: [16, 20, 24],
+};
+
+function investorEsc(value) {
+   return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+}
+
+function investorLocalToday() {
+   var d = new Date();
+   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function investorFmtDate(iso) {
+   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "-";
+   var p = iso.split("-").map(Number);
+   return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Agreement month n is the n-th calendar month after the month of the Effective Date, as the portal counts it.
+function investorMonthLabel(effectiveDate, n) {
+   if (!effectiveDate || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) return "";
+   var p = effectiveDate.split("-").map(Number);
+   return new Date(p[0], p[1] - 1 + n, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+}
+
+// Terms from the agreement document when the admin filled them, otherwise the contract values the portal also uses.
+function investorTerms() {
+   var a = state.investor.agreement || {};
+   var termMonths = Number.isInteger(a.termMonths) && a.termMonths > 0 ? a.termMonths : INVESTOR_DEFAULTS.termMonths;
+   var total = Number.isSafeInteger(a.totalInvestment) && a.totalInvestment > 0 ? a.totalInvestment : INVESTOR_DEFAULTS.totalInvestment;
+   var rate = Number.isInteger(a.commissionRateBasisPoints) ? a.commissionRateBasisPoints : INVESTOR_DEFAULTS.commissionRateBasisPoints;
+   var repayments = Array.isArray(a.repayments) && a.repayments.length === 3 ? a.repayments : null;
+   return {
+      effectiveDate: typeof a.effectiveDate === "string" && a.effectiveDate ? a.effectiveDate : null,
+      termMonths: termMonths,
+      totalInvestment: total,
+      commission: Math.round((total * rate) / 10000),
+      dueMonths: repayments
+         ? repayments.map(function (r, i) { return (r && r.dueMonth) || INVESTOR_DEFAULTS.repaymentDueMonths[i]; })
+         : INVESTOR_DEFAULTS.repaymentDueMonths,
+      repaymentAmounts: repayments
+         ? repayments.map(function (r) {
+              return r && Number.isInteger(r.percentBasisPoints) ? Math.round((total * r.percentBasisPoints) / 10000) : null;
+           })
+         : [null, null, null],
+   };
+}
+
+// Started on the first visit by an owner or admin, so other roles never read these collections.
+function startInvestorListeners() {
+   if (state.investor.listening) return;
+   state.investor.listening = true;
+   state.investor.error = "";
+   var onError = function (err) {
+      console.error("Investor listener error:", err);
+      state.investor.listening = false;
+      state.investor.error =
+         err && err.code === "resource-exhausted"
+            ? "Kuota baca harian database sudah habis. Data bisa dimuat lagi setelah kuota direset, sekitar pukul 14.00 sampai 15.00 WIB."
+            : "Gagal memuat data investor: " + (err && err.message ? err.message : err);
+      if (state.currentPage === "investor") renderInvestor();
+   };
+   var unsubAgreement = db
+      .collection("investor_agreement")
+      .doc("current")
+      .onSnapshot(function (snap) {
+         state.investor.agreement = snap.exists ? snap.data() : null;
+         state.investor.agreementLoaded = true;
+         if (state.currentPage === "investor") renderInvestor();
+      }, onError);
+   var unsubPayments = db.collection("investor_payments").onSnapshot(function (snap) {
+      state.investor.payments = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+      state.investor.paymentsLoaded = true;
+      if (state.currentPage === "investor") renderInvestor();
+   }, onError);
+   state.listeners.push(unsubAgreement, unsubPayments);
+}
+
+window.retryInvestorData = function () {
+   state.investor.error = "";
+   renderInvestor();
+};
+
+window.renderInvestor = function () {
+   var container = $("#pageInvestor");
+   if (!container) return;
+
+   var _role = getCurrentUserRole();
+   if (_role !== "owner" && _role !== "admin") {
+      container.innerHTML =
+         '<div class="empty-state"><i class="fas fa-lock"></i><h4>Akses ditolak</h4><p>Halaman ini hanya untuk Owner atau Admin</p></div>';
+      return;
+   }
+
+   var header =
+      '<div class="cat-toolbar">' +
+      "<div>" +
+      '<h3 style="font-size:16px;font-weight:700">Investor</h3>' +
+      '<p style="font-size:13px;color:var(--text-muted);margin-top:4px">Tanggal Efektif dan pembayaran di halaman ini tampil di portal investor (capital.inzta.id).</p>' +
+      "</div>" +
+      '<button class="btn btn-primary btn-sm" onclick="openInvestorPaymentModal()"' +
+      (state.investor.agreementLoaded && state.investor.paymentsLoaded ? "" : " disabled") +
+      '><i class="fas fa-plus"></i>Catat Pembayaran</button>' +
+      "</div>";
+
+   if (state.investor.error) {
+      container.innerHTML =
+         header +
+         '<div class="card"><div class="empty-state"><i class="fas fa-triangle-exclamation"></i><h4>Data investor belum bisa dimuat</h4><p>' +
+         investorEsc(state.investor.error) +
+         '</p><button class="btn btn-outline btn-sm" style="margin-top:12px" onclick="retryInvestorData()">Coba lagi</button></div></div>';
+      return;
+   }
+
+   startInvestorListeners();
+   if (!state.investor.agreementLoaded || !state.investor.paymentsLoaded) {
+      container.innerHTML =
+         header + '<div class="card"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><h4>Memuat data investor...</h4></div></div>';
+      return;
+   }
+
+   var t = investorTerms();
+   var info = function (label, value) {
+      return (
+         "<div>" +
+         '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">' + label + "</div>" +
+         '<div style="font-size:15px;font-weight:700">' + value + "</div>" +
+         "</div>"
+      );
+   };
+   var periodText = t.effectiveDate
+      ? investorMonthLabel(t.effectiveDate, 1) + " sampai " + investorMonthLabel(t.effectiveDate, t.termMonths)
+      : '<span class="badge badge-pending">Menunggu Tanggal Efektif</span>';
+
+   var agreementCard =
+      '<div class="card" style="height:auto;margin-bottom:18px">' +
+      '<div class="card-header"><h3>Perjanjian</h3>' +
+      '<button class="btn btn-outline btn-sm" onclick="openInvestorEffectiveModal()"><i class="fas fa-calendar-check"></i>' +
+      (t.effectiveDate ? "Ubah Tanggal Efektif" : "Isi Tanggal Efektif") +
+      "</button></div>" +
+      '<div class="card-body"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px">' +
+      info("Tanggal Efektif", t.effectiveDate ? investorFmtDate(t.effectiveDate) : '<span class="badge badge-pending">Belum diisi</span>') +
+      info("Masa perjanjian (" + t.termMonths + " bulan)", periodText) +
+      info("Komisi per bulan", '<span style="font-family:monospace">' + fmtRp(t.commission) + "</span>") +
+      info("Dana investasi", '<span style="font-family:monospace">' + fmtRp(t.totalInvestment) + "</span>") +
+      "</div></div></div>";
+
+   var payments = state.investor.payments.slice().sort(function (a, b) {
+      return (a.periodMonth || 0) - (b.periodMonth || 0) || String(a.paidDate || "").localeCompare(String(b.paidDate || ""));
+   });
+   var rows = payments.length
+      ? payments
+           .map(function (p) {
+              var kind = p.kind === "repayment" ? "Pengembalian ke-" + (p.repaymentNumber || "?") : "Komisi";
+              var badge = p.kind === "repayment" ? "badge-active" : "badge-pending";
+              var month = investorMonthLabel(t.effectiveDate, p.periodMonth);
+              return (
+                 "<tr>" +
+                 '<td><span class="badge ' + badge + '">' + kind + "</span></td>" +
+                 "<td>Bulan ke-" + investorEsc(p.periodMonth) +
+                 (month ? '<div style="font-size:12px;color:var(--text-muted)">' + month + "</div>" : "") +
+                 "</td>" +
+                 '<td style="font-family:monospace;font-weight:600">' + fmtRp(p.amount) + "</td>" +
+                 "<td>" + investorFmtDate(p.paidDate) + "</td>" +
+                 '<td style="color:var(--text-muted);max-width:240px">' + (p.note ? investorEsc(p.note) : "-") + "</td>" +
+                 '<td><div style="display:flex;gap:6px">' +
+                 '<button class="action-btn" title="Ubah" onclick="openInvestorPaymentModal(\'' + p.id + "')\"><i class=\"fas fa-pen\"></i></button>" +
+                 '<button class="action-btn del" title="Hapus" onclick="confirmDeleteInvestorPayment(\'' + p.id + "')\"><i class=\"fas fa-trash\"></i></button>" +
+                 "</div></td>" +
+                 "</tr>"
+              );
+           })
+           .join("")
+      : '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-hand-holding-dollar"></i><h4>Belum ada pembayaran tercatat</h4><p>Klik "Catat Pembayaran" setelah Komisi atau pengembalian ditransfer ke investor</p></div></td></tr>';
+
+   var paidTotal = payments.reduce(function (sum, p) { return sum + (Number(p.amount) || 0); }, 0);
+   var paymentsCard =
+      '<div class="card" style="height:auto">' +
+      '<div class="card-header"><h3>Pembayaran ke Investor</h3>' +
+      '<span style="font-size:13px;color:var(--text-muted)">' + payments.length + " catatan · total " +
+      '<span style="font-family:monospace">' + fmtRp(paidTotal) + "</span></span></div>" +
+      '<div class="table-scroll"><table class="data-table">' +
+      "<thead><tr><th>Jenis</th><th>Periode</th><th>Nominal</th><th>Tanggal Transfer</th><th>Catatan</th><th>Aksi</th></tr></thead>" +
+      "<tbody>" + rows + "</tbody></table></div></div>";
+
+   container.innerHTML = header + agreementCard + paymentsCard;
+};
+
+window.openInvestorEffectiveModal = function () {
+   var t = investorTerms();
+   var body =
+      '<div class="form-group">' +
+      "<label>Tanggal Efektif</label>" +
+      '<input type="date" class="form-input" id="fInvEffective" value="' + (t.effectiveDate || "") + '">' +
+      '<p style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5">Tanggal Dana Investasi Tahap I diterima penuh. ' +
+      "Bulan ke-1 perjanjian adalah bulan setelah bulan Tanggal Efektif. Kosongkan bila perjanjian belum berjalan; portal lalu menampilkan " +
+      "&quot;Perjanjian belum aktif&quot;.</p>" +
+      "</div>";
+   var footer =
+      '<button type="button" class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" onclick="saveInvestorEffectiveDate()">Simpan</button>';
+   openModal("Tanggal Efektif Perjanjian", body, footer);
+};
+
+window.saveInvestorEffectiveDate = async function () {
+   var value = ($("#fInvEffective") && $("#fInvEffective").value) || "";
+   if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      toast("Format tanggal tidak valid", "warning");
+      return;
+   }
+   var saveBtn = $("#modalFooter .btn-primary");
+   saveBtn.disabled = true;
+   saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+   try {
+      await db.collection("investor_agreement").doc("current").set(
+         {
+            effectiveDate: value || null,
+            updatedAt: new Date().toISOString(),
+            updatedBy: auth.currentUser ? auth.currentUser.uid : "",
+         },
+         { merge: true },
+      );
+      toast(value ? "Tanggal Efektif disimpan" : "Tanggal Efektif dikosongkan", "success");
+      closeModal();
+   } catch (err) {
+      console.error("Gagal menyimpan Tanggal Efektif:", err);
+      toast("Gagal menyimpan: " + err.message, "error");
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = "Simpan";
+   }
+};
+
+window.openInvestorPaymentModal = function (docId) {
+   var existing = docId
+      ? state.investor.payments.find(function (p) { return p.id === docId; })
+      : null;
+   if (docId && !existing) {
+      toast("Data pembayaran tidak ditemukan", "error");
+      return;
+   }
+   var t = investorTerms();
+   var v = existing || { kind: "commission", periodMonth: 1, repaymentNumber: 1, amount: t.commission, paidDate: investorLocalToday(), note: "" };
+   var repNo = v.repaymentNumber || 1;
+   var repOptions = [1, 2, 3]
+      .map(function (n) {
+         return '<option value="' + n + '"' + (n === repNo ? " selected" : "") + ">Pengembalian ke-" + n + " (bulan ke-" + t.dueMonths[n - 1] + ")</option>";
+      })
+      .join("");
+
+   var body =
+      '<form id="investorPaymentForm" onsubmit="event.preventDefault(); saveInvestorPayment(' + (docId ? "'" + docId + "'" : "null") + ')">' +
+      '<div class="form-row">' +
+      '<div class="form-group"><label>Jenis</label>' +
+      '<select class="form-input" id="fInvKind" onchange="onInvestorKindChange()">' +
+      '<option value="commission"' + (v.kind === "commission" ? " selected" : "") + ">Komisi bulanan</option>" +
+      '<option value="repayment"' + (v.kind === "repayment" ? " selected" : "") + ">Pengembalian dana investasi</option>" +
+      "</select></div>" +
+      '<div class="form-group" id="fInvRepNoGroup"' + (v.kind === "repayment" ? "" : ' style="display:none"') + "><label>Pengembalian</label>" +
+      '<select class="form-input" id="fInvRepNo" onchange="onInvestorRepNoChange()">' + repOptions + "</select></div>" +
+      "</div>" +
+      '<div class="form-row">' +
+      '<div class="form-group"><label>Bulan ke- (1 sampai ' + t.termMonths + ') <span style="color:var(--danger)">*</span></label>' +
+      '<input type="number" class="form-input" id="fInvPeriod" min="1" max="' + t.termMonths + '" step="1" value="' + investorEsc(v.periodMonth) + '"' +
+      (v.kind === "repayment" ? " readonly" : "") + ' oninput="onInvestorPeriodInput()">' +
+      '<div id="fInvPeriodHint" style="font-size:12px;color:var(--text-muted);margin-top:6px"></div></div>' +
+      '<div class="form-group"><label>Nominal (Rp) <span style="color:var(--danger)">*</span></label>' +
+      '<input type="number" class="form-input" id="fInvAmount" min="1" step="1" value="' + investorEsc(v.amount == null ? "" : v.amount) + '" style="font-family:monospace"></div>' +
+      "</div>" +
+      '<div class="form-group"><label>Tanggal Transfer <span style="color:var(--danger)">*</span></label>' +
+      '<input type="date" class="form-input" id="fInvPaidDate" value="' + investorEsc(v.paidDate) + '"></div>' +
+      '<div class="form-group"><label>Catatan (opsional)</label>' +
+      '<input type="text" class="form-input" id="fInvNote" maxlength="300" placeholder="Contoh: dibayar sebagian. Jangan tulis nomor rekening." value="' + investorEsc(v.note) + '"></div>' +
+      "</form>";
+   var footer =
+      '<button type="button" class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" onclick="$(\'#investorPaymentForm\').dispatchEvent(new Event(\'submit\'))">Simpan</button>';
+   openModal(existing ? "Ubah Pembayaran" : "Catat Pembayaran", body, footer);
+   onInvestorPeriodInput();
+};
+
+window.onInvestorKindChange = function () {
+   var t = investorTerms();
+   var isRepayment = $("#fInvKind").value === "repayment";
+   $("#fInvRepNoGroup").style.display = isRepayment ? "" : "none";
+   $("#fInvPeriod").readOnly = isRepayment;
+   if (isRepayment) onInvestorRepNoChange();
+   else {
+      $("#fInvAmount").value = t.commission;
+      onInvestorPeriodInput();
+   }
+};
+
+window.onInvestorRepNoChange = function () {
+   var t = investorTerms();
+   var n = Number($("#fInvRepNo").value);
+   $("#fInvPeriod").value = t.dueMonths[n - 1];
+   var amount = t.repaymentAmounts[n - 1];
+   $("#fInvAmount").value = amount == null ? "" : amount;
+   onInvestorPeriodInput();
+};
+
+window.onInvestorPeriodInput = function () {
+   var hint = $("#fInvPeriodHint");
+   if (!hint) return;
+   var t = investorTerms();
+   var n = Number($("#fInvPeriod").value);
+   var label = Number.isInteger(n) && n >= 1 ? investorMonthLabel(t.effectiveDate, n) : "";
+   hint.textContent = t.effectiveDate ? (label ? "Jatuh tempo 25 sampai 26 " + label : "") : "Tanggal Efektif belum diisi";
+};
+
+window.saveInvestorPayment = async function (docId) {
+   var t = investorTerms();
+   var kind = $("#fInvKind").value;
+   var periodMonth = Number($("#fInvPeriod").value);
+   var repaymentNumber = kind === "repayment" ? Number($("#fInvRepNo").value) : null;
+   var amount = Number($("#fInvAmount").value);
+   var paidDate = $("#fInvPaidDate").value;
+   var note = $("#fInvNote").value.trim();
+
+   if (kind !== "commission" && kind !== "repayment") return toast("Pilih jenis pembayaran", "warning");
+   if (!Number.isInteger(periodMonth) || periodMonth < 1 || periodMonth > t.termMonths)
+      return toast("Bulan ke- harus 1 sampai " + t.termMonths, "warning");
+   if (kind === "repayment" && [1, 2, 3].indexOf(repaymentNumber) === -1) return toast("Pilih pengembalian ke-1, 2, atau 3", "warning");
+   if (!Number.isSafeInteger(amount) || amount <= 0) return toast("Nominal harus angka Rupiah bulat lebih dari 0", "warning");
+   if (!/^\d{4}-\d{2}-\d{2}$/.test(paidDate)) return toast("Tanggal transfer wajib diisi", "warning");
+
+   // The portal adds up every record of the same month (or the same repayment), so a second record would double the amount.
+   var duplicate = state.investor.payments.find(function (p) {
+      if (p.id === docId || p.kind !== kind) return false;
+      return kind === "repayment" ? p.repaymentNumber === repaymentNumber : p.periodMonth === periodMonth;
+   });
+   if (duplicate) {
+      return toast(
+         (kind === "repayment" ? "Pengembalian ke-" + repaymentNumber : "Komisi bulan ke-" + periodMonth) +
+            " sudah tercatat. Ubah catatan yang ada bila nominalnya berubah.",
+         "warning",
+      );
+   }
+
+   var uid = auth.currentUser ? auth.currentUser.uid : "";
+   var now = new Date().toISOString();
+   var data = { kind: kind, periodMonth: periodMonth, amount: amount, paidDate: paidDate };
+   var deleteField = firebase.firestore.FieldValue.delete();
+
+   var saveBtn = $("#modalFooter .btn-primary");
+   saveBtn.disabled = true;
+   saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+   try {
+      if (docId) {
+         data.repaymentNumber = repaymentNumber || deleteField;
+         data.note = note || deleteField;
+         data.updatedAt = now;
+         data.updatedBy = uid;
+         await db.collection("investor_payments").doc(docId).update(data);
+         toast("Pembayaran diperbarui", "success");
+      } else {
+         if (repaymentNumber) data.repaymentNumber = repaymentNumber;
+         if (note) data.note = note;
+         data.recordedAt = now;
+         data.recordedBy = uid;
+         await db.collection("investor_payments").add(data);
+         toast("Pembayaran dicatat", "success");
+      }
+      closeModal();
+   } catch (err) {
+      console.error("Gagal menyimpan pembayaran investor:", err);
+      toast("Gagal menyimpan: " + err.message, "error");
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = "Simpan";
+   }
+};
+
+window.confirmDeleteInvestorPayment = function (docId) {
+   var p = state.investor.payments.find(function (x) { return x.id === docId; });
+   if (!p) return;
+   var label = p.kind === "repayment" ? "pengembalian ke-" + p.repaymentNumber : "Komisi bulan ke-" + p.periodMonth;
+   var body =
+      "<p>Hapus catatan " + label + " sebesar <strong>" + fmtRp(p.amount) + "</strong> (" + investorFmtDate(p.paidDate) + ")?</p>" +
+      '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">Portal investor langsung menampilkan pembayaran ini sebagai belum dibayar.</p>';
+   var footer =
+      '<button type="button" class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>' +
+      '<button type="button" class="btn btn-danger btn-sm" onclick="deleteInvestorPayment(\'' + docId + "')\">Hapus</button>";
+   openModal("Hapus Pembayaran", body, footer);
+};
+
+window.deleteInvestorPayment = async function (docId) {
+   try {
+      await db.collection("investor_payments").doc(docId).delete();
+      toast("Catatan pembayaran dihapus", "success");
+      closeModal();
+   } catch (err) {
+      console.error("Gagal menghapus pembayaran investor:", err);
+      toast("Gagal menghapus: " + err.message, "error");
+   }
+};
 
 /* =========================================================
    RESELLER ANALYTICS & DASHBOARD
