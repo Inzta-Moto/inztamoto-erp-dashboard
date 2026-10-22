@@ -74,6 +74,7 @@ Untuk keperluan testing tanpa Firebase:
 2. Hubungkan repo ke akun Vercel
 3. Tambahkan semua environment variables di Vercel dashboard (Settings → Environment Variables)
 4. Deploy — Vercel akan auto-detect Next.js
+5. Production branch: `main` (Settings → Git). Setiap merge ke `main` otomatis ter-deploy.
 
 ---
 
