@@ -199,6 +199,9 @@ export default function InztamotoApp() {
                   <a href="#" className="nav-item" data-page="investor" id="menuInvestor">
                      <i className="fas fa-hand-holding-dollar"></i>Investor
                   </a>
+                  <a href="#" className="nav-item" data-page="belanjaInvestasi" id="menuBelanjaInvestasi">
+                     <i className="fas fa-wallet"></i>Belanja Investasi
+                  </a>
                   <a href="#" className="nav-item" data-page="produksi">
                      <i className="fas fa-industry"></i>Produksi
                   </a>
@@ -707,6 +710,11 @@ export default function InztamotoApp() {
                   {/* Investor: Tanggal Efektif and payments shown in the investor portal */}
                   <div className="page" id="pageInvestor">
                      {/* Rendered dynamically by renderInvestor() in app-runtime.js */}
+                  </div>
+
+                  {/* Belanja Investasi: purchases paid from the investment, kept apart from Belanja Produksi */}
+                  <div className="page" id="pageBelanjaInvestasi">
+                     {/* Rendered dynamically by renderBelanjaInvestasi() in app-runtime.js */}
                   </div>
 
                   {/* Inventaris */}

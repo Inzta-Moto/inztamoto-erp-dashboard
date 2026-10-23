@@ -198,11 +198,11 @@ const state = {
       paymentsLoaded: false,
       listening: false,
       error: "",
-      usageMonth: "",
-      usagePage: 1,
       paymentsPage: 1,
       perPage: 10,
    },
+   investorPurchases: [],
+   ip: { period: "month", date: new Date().toISOString().split("T")[0], search: "", page: 1, loaded: false, error: "" },
    pp: { search: "", week: "", status: "all", month: "all", date: new Date().toISOString().split("T")[0], page: 1, perPage: 10 },
    payroll: { search: "", period: "", status: "all", page: 1, perPage: 10 },
    salaryProd: { search: "", month: "all", year: "all", page: 1, perPage: 8 },
@@ -737,6 +737,9 @@ function updateNavigationAccess() {
    const investorMenu = $("#menuInvestor");
    if (investorMenu)
       investorMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   const investorPurchaseMenu = $("#menuBelanjaInvestasi");
+   if (investorPurchaseMenu)
+      investorPurchaseMenu.style.display = isOwnerOrAdmin ? "" : "none";
 }
 
 /* =========================================================
@@ -904,6 +907,30 @@ const LAZY_LISTENERS = {
             },
          );
    },
+   investor_purchases: function () {
+      return db
+         .collection("investor_purchases")
+         .orderBy("date", "desc")
+         .onSnapshot(
+            function (snap) {
+               state.investorPurchases = snap.docs.map(function (d) {
+                  return Object.assign({ id: d.id }, d.data());
+               });
+               state.ip.loaded = true;
+               state.ip.error = "";
+               if (state.currentPage === "belanjaInvestasi") renderBelanjaInvestasi();
+            },
+            function (err) {
+               console.error("Investor purchases listener error:", err);
+               state.lazyListening.investor_purchases = false;
+               state.ip.error =
+                  err && err.code === "resource-exhausted"
+                     ? "Kuota baca harian database sudah habis. Data bisa dimuat lagi setelah kuota direset, sekitar pukul 14.00 sampai 15.00 WIB."
+                     : "Gagal memuat belanja investasi: " + (err && err.message ? err.message : err);
+               if (state.currentPage === "belanjaInvestasi") renderBelanjaInvestasi();
+            },
+         );
+   },
    users: function () {
       return db.collection("users").onSnapshot(
          (snap) => {
@@ -928,6 +955,7 @@ const LAZY_LISTENERS = {
 
 const LAZY_LISTENERS_BY_PAGE = {
    inventaris: ["stock_movements"],
+   belanjaInvestasi: ["investor_purchases"],
    sponsorship: ["sponsorships"],
    pengguna: ["users"],
 };
@@ -977,6 +1005,9 @@ function renderCurrentPage() {
          break;
       case "investor":
          renderInvestor();
+         break;
+      case "belanjaInvestasi":
+         renderBelanjaInvestasi();
          break;
    }
 }
@@ -1061,6 +1092,7 @@ const TITLES = {
    sponsorship: "Support Sponsorship",
    reseller: "Reseller Management",
    investor: "Investor",
+   belanjaInvestasi: "Belanja Investasi",
 };
 
 function navigateTo(page) {
@@ -1097,7 +1129,7 @@ function navigateTo(page) {
    }
    const _roleForInvestor = getCurrentUserRole();
    if (
-      page === "investor" &&
+      (page === "investor" || page === "belanjaInvestasi") &&
       _roleForInvestor !== "owner" &&
       _roleForInvestor !== "admin"
    ) {
@@ -4805,7 +4837,7 @@ function renderBelanjaProduksi() {
               return `<tr>
           <td>${p.date}</td>
           <td><small style="color:var(--text-muted)">${p.weekKey || ""}</small></td>
-          <td><strong>${p.itemName}</strong>${p.investorAgreementId ? ' <span class="badge badge-active" style="margin-left:6px;font-size:11px">Dana investasi</span>' : ""}</td>
+          <td><strong>${p.itemName}</strong></td>
           <td>${p.category || "-"}</td>
           <td>${fmt(p.quantity)} ${p.unit || ""}</td>
           <td>${fmtRp(p.unitPrice)}</td>
@@ -5146,8 +5178,7 @@ function purchaseFormHTML(p) {
     <div style="padding:10px 14px;background:var(--primary-light);border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px">
       Total: <strong id="fPPTotalDisplay">${fmtRp(v.totalCost)}</strong>
     </div>
-    <div class="form-group"><label>Catatan</label><input type="text" class="form-input" id="fPPNote" value="${v.note || ""}" placeholder="Opsional"></div>
-    ${isInvestorEditor() ? investorFundCheckboxHTML(!!v.investorAgreementId) : ""}`;
+    <div class="form-group"><label>Catatan</label><input type="text" class="form-input" id="fPPNote" value="${v.note || ""}" placeholder="Opsional"></div>`;
 }
 
 window.updatePPWeekKey = function () {
@@ -5165,7 +5196,6 @@ window.calcPPTotal = function () {
 
 // ---- Open Add Modal ----
 window.openAddPurchaseModal = function () {
-   if (isInvestorEditor()) startInvestorListeners();
    openModal(
       "Tambah Belanja Produksi",
       purchaseFormHTML(),
@@ -5200,13 +5230,9 @@ window.savePurchase = async function () {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
    });
-   const investorBox = $("#fPPInvestor");
-   const markInvestor = !!(investorBox && investorBox.checked);
-   if (markInvestor) Object.assign(doc, investorMarkFields());
    try {
       await db.collection("production_purchases").add(doc);
       toast("Belanja dicatat", "success");
-      if (markInvestor) warnIfBeforeEffective(date);
       closeModal();
    } catch (err) {
       toast("Gagal: " + err.message, "error");
@@ -5224,7 +5250,6 @@ window.editPurchase = function (id) {
       toast("Belanja yang sudah ditutup tidak bisa diedit", "warning");
       return;
    }
-   if (isInvestorEditor()) startInvestorListeners();
    openModal(
       "Edit Belanja Produksi",
       purchaseFormHTML(p),
@@ -5260,14 +5285,9 @@ window.saveEditPurchase = async function (id) {
       note: $("#fPPNote") ? $("#fPPNote").value.trim() : "",
       updatedAt: new Date().toISOString(),
    });
-   const investorBox = $("#fPPInvestor");
-   const markInvestor = !!(investorBox && investorBox.checked && !p.investorAgreementId);
-   if (markInvestor) Object.assign(updates, investorMarkFields());
-   if (investorBox && !investorBox.checked && p.investorAgreementId) Object.assign(updates, investorUnmarkFields());
    try {
       await db.collection("production_purchases").doc(id).update(updates);
       toast("Belanja diupdate", "success");
-      if (investorBox && investorBox.checked) warnIfBeforeEffective(date);
       closeModal();
    } catch (err) {
       toast("Gagal: " + err.message, "error");
@@ -5288,7 +5308,6 @@ window.confirmDeletePurchase = function (id) {
        <i class="fas fa-trash" style="font-size:40px;color:var(--danger);opacity:.6;margin-bottom:14px;display:block"></i>
        <p style="font-size:15px;font-weight:600">Hapus "${p.itemName}"?</p>
        <p style="font-size:13px;color:var(--text-muted);margin-top:6px">Total: ${fmtRp(p.totalCost)}</p>
-       ${p.investorAgreementId ? '<p style="font-size:13px;color:var(--warning);margin-top:10px;line-height:1.5">Belanja ini tampil di portal investor sebagai penggunaan dana investasi. Setelah dihapus, belanja ini juga hilang dari portal.</p>' : ""}
      </div>`,
       `<button class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>
      <button class="btn btn-danger btn-sm" onclick="doDeletePurchase('${id}')"><i class="fas fa-trash"></i>Hapus</button>`,
@@ -9588,7 +9607,7 @@ document.addEventListener("click", function (e) {
 
 // Investor portal data (capital.inzta.id). The portal reads investor_agreement/current and investor_payments and
 // ignores any field that is not in its shape, so dates stay "YYYY-MM-DD" and amounts stay whole Rupiah numbers.
-// Belanja Produksi paid from the investment carries the agreement id, not true, so a second investor only changes the value.
+// Belanja Investasi items carry the agreement id, not true, so a second investor only changes the value.
 var INVESTOR_AGREEMENT_ID = "current";
 
 function isInvestorEditor() {
@@ -9596,34 +9615,11 @@ function isInvestorEditor() {
    return role === "owner" || role === "admin";
 }
 
-function investorMarkFields() {
-   return {
-      investorAgreementId: INVESTOR_AGREEMENT_ID,
-      investorMarkedAt: new Date().toISOString(),
-      investorMarkedBy: auth.currentUser ? auth.currentUser.uid : "",
-   };
-}
-
-function investorUnmarkFields() {
-   var del = firebase.firestore.FieldValue.delete();
-   return { investorAgreementId: del, investorMarkedAt: del, investorMarkedBy: del };
-}
-
-function investorFundCheckboxHTML(checked) {
-   return (
-      '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;cursor:pointer">' +
-      '<input type="checkbox" id="fPPInvestor"' + (checked ? " checked" : "") + ' style="margin-top:2px">' +
-      "<span><strong>Dibayar dari dana investasi</strong><br>" +
-      '<span style="color:var(--text-muted)">Belanja ini tampil di halaman Penggunaan Dana portal investor.</span></span>' +
-      "</label>"
-   );
-}
-
-// Marking an earlier purchase is allowed: the investor may have funded it before the agreement took effect.
+// An earlier date is allowed: the investor may have funded a purchase before the agreement took effect.
 function warnIfBeforeEffective(date) {
    var effective = state.investor.agreementLoaded ? investorTerms().effectiveDate : null;
    if (effective && date && date < effective) {
-      toast("Belanja ini bertanggal sebelum Tanggal Efektif (" + investorFmtDate(effective) + "), tetap ditandai.", "warning");
+      toast("Belanja ini bertanggal sebelum Tanggal Efektif (" + investorFmtDate(effective) + "), tetap disimpan.", "warning");
    }
 }
 
@@ -9733,11 +9729,6 @@ function investorTableFooterHTML(slice, total, noun, onClickFuncName) {
 
 window.goInvestorPaymentsPage = function (page) {
    state.investor.paymentsPage = page;
-   renderInvestor();
-};
-
-window.goInvestorUsagePage = function (page) {
-   state.investor.usagePage = page;
    renderInvestor();
 };
 
@@ -9852,85 +9843,7 @@ window.renderInvestor = function () {
       investorTableFooterHTML(paymentsSlice, payments.length, "catatan", "goInvestorPaymentsPage") +
       "</div>";
 
-   container.innerHTML = header + agreementCard + paymentsCard + investorUsageCardHTML();
-};
-
-function investorUsageCardHTML() {
-   var purchases = state.productionPurchases || [];
-   var month = state.investor.usageMonth || investorLocalToday().slice(0, 7);
-   var months = {};
-   months[investorLocalToday().slice(0, 7)] = true;
-   purchases.forEach(function (p) {
-      if (typeof p.date === "string" && p.date.length >= 7) months[p.date.slice(0, 7)] = true;
-   });
-   var options = Object.keys(months)
-      .sort()
-      .reverse()
-      .map(function (m) {
-         var label = investorMonthLabel(m + "-01", 0);
-         return '<option value="' + m + '"' + (m === month ? " selected" : "") + ">" + label + "</option>";
-      })
-      .join("");
-   var list = purchases
-      .filter(function (p) { return typeof p.date === "string" && p.date.slice(0, 7) === month; })
-      .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-   var marked = list.filter(function (p) { return p.investorAgreementId; }).length;
-   var usageSlice = investorPageSlice(list, state.investor.usagePage);
-   state.investor.usagePage = usageSlice.page;
-   var rows = list.length
-      ? usageSlice.items
-           .map(function (p) {
-              return (
-                 "<tr>" +
-                 '<td><input type="checkbox" aria-label="Dibayar dari dana investasi: ' + investorEsc(p.itemName) + '"' +
-                 (p.investorAgreementId ? " checked" : "") +
-                 " onchange=\"toggleInvestorPurchase('" + p.id + "', this.checked)\" style=\"width:18px;height:18px;cursor:pointer\"></td>" +
-                 "<td>" + investorFmtDate(p.date) + "</td>" +
-                 "<td><strong>" + investorEsc(p.itemName) + "</strong></td>" +
-                 "<td>" + (p.category ? investorEsc(p.category) : "-") + "</td>" +
-                 "<td>" + fmt(p.quantity) + " " + investorEsc(p.unit || "") + "</td>" +
-                 '<td style="font-family:monospace;font-weight:600">' + fmtRp(p.totalCost) + "</td>" +
-                 "</tr>"
-              );
-           })
-           .join("")
-      : '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-shopping-basket"></i><h4>Belum ada belanja di bulan ini</h4><p>Belanja dicatat di menu Belanja Produksi</p></div></td></tr>';
-
-   return (
-      '<div class="card" style="height:auto;margin-top:18px">' +
-      '<div class="card-header"><div><h3>Penggunaan Dana Investasi</h3>' +
-      '<p style="font-size:12px;color:var(--text-muted);margin-top:4px">Centang belanja yang dibayar dari dana investasi. Yang dicentang tampil di portal investor sebagai daftar, tanpa total.</p></div>' +
-      '<div style="display:flex;gap:10px;align-items:center">' +
-      '<span style="font-size:13px;color:var(--text-muted)">' + marked + " ditandai</span>" +
-      '<select class="form-input" style="width:auto;min-width:160px" onchange="onInvestorUsageMonth(this.value)">' + options + "</select>" +
-      "</div></div>" +
-      '<div class="table-scroll"><table class="data-table">' +
-      "<thead><tr><th>Dana investasi</th><th>Tanggal</th><th>Nama Barang</th><th>Kategori</th><th>Qty</th><th>Total</th></tr></thead>" +
-      "<tbody>" + rows + "</tbody></table></div>" +
-      investorTableFooterHTML(usageSlice, list.length, "belanja", "goInvestorUsagePage") +
-      "</div>"
-   );
-}
-
-window.onInvestorUsageMonth = function (month) {
-   state.investor.usageMonth = month;
-   state.investor.usagePage = 1;
-   renderInvestor();
-};
-
-// Only the marker fields change, so a closed week stays locked while the admin can still mark what it funded.
-window.toggleInvestorPurchase = async function (id, checked) {
-   var p = (state.productionPurchases || []).find(function (x) { return x.id === id; });
-   if (!p) return;
-   try {
-      await db.collection("production_purchases").doc(id).update(checked ? investorMarkFields() : investorUnmarkFields());
-      toast(checked ? "Ditandai dibayar dana investasi" : "Tanda dana investasi dibatalkan", "success");
-      if (checked) warnIfBeforeEffective(p.date);
-   } catch (err) {
-      console.error("Gagal menandai belanja investor:", err);
-      toast("Gagal menyimpan: " + err.message, "error");
-      renderInvestor();
-   }
+   container.innerHTML = header + agreementCard + paymentsCard;
 };
 
 window.openInvestorEffectiveModal = function () {
@@ -10137,6 +10050,270 @@ window.deleteInvestorPayment = async function (docId) {
       closeModal();
    } catch (err) {
       console.error("Gagal menghapus pembayaran investor:", err);
+      toast("Gagal menghapus: " + err.message, "error");
+   }
+};
+
+// Belanja Investasi has its own collection, so these purchases never reach Belanja Produksi, Laporan, or the Dashboard:
+// the investment is temporary and Inzta keeps it apart. The investor portal lists the items without totals.
+var IP_PERIODS = [
+   { value: "day", label: "Hari" },
+   { value: "week", label: "Minggu" },
+   { value: "month", label: "Bulan" },
+   { value: "all", label: "Semua" },
+];
+
+function ipMatchesPeriod(p) {
+   var date = state.ip.date || investorLocalToday();
+   if (typeof p.date !== "string") return false;
+   if (state.ip.period === "day") return p.date === date;
+   if (state.ip.period === "week") return getWeekKey(p.date) === getWeekKey(date);
+   if (state.ip.period === "month") return p.date.slice(0, 7) === date.slice(0, 7);
+   return true;
+}
+
+function ipPeriodLabel() {
+   var date = state.ip.date || investorLocalToday();
+   if (state.ip.period === "day") return investorFmtDate(date);
+   if (state.ip.period === "week") return weekKeyLabel(getWeekKey(date));
+   if (state.ip.period === "month") return investorMonthLabel(date.slice(0, 7) + "-01", 0);
+   return "Semua periode";
+}
+
+window.renderBelanjaInvestasi = function () {
+   var container = $("#pageBelanjaInvestasi");
+   if (!container) return;
+
+   if (!isInvestorEditor()) {
+      container.innerHTML =
+         '<div class="empty-state"><i class="fas fa-lock"></i><h4>Akses ditolak</h4><p>Halaman ini hanya untuk Owner atau Admin</p></div>';
+      return;
+   }
+   if (state.ip.error) {
+      container.innerHTML =
+         '<div class="card"><div class="empty-state"><i class="fas fa-triangle-exclamation"></i><h4>Belanja investasi belum bisa dimuat</h4><p>' +
+         investorEsc(state.ip.error) +
+         '</p><button class="btn btn-outline btn-sm" style="margin-top:12px" onclick="retryInvestorPurchases()">Coba lagi</button></div></div>';
+      return;
+   }
+   if (!state.ip.loaded) {
+      container.innerHTML = '<div class="card"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><h4>Memuat belanja investasi...</h4></div></div>';
+      return;
+   }
+
+   var q = state.ip.search.toLowerCase();
+   var list = state.investorPurchases
+      .filter(ipMatchesPeriod)
+      .filter(function (p) {
+         return !q || [p.itemName, p.category, p.note].some(function (v) { return String(v || "").toLowerCase().indexOf(q) !== -1; });
+      })
+      .sort(function (a, b) {
+         return String(b.date).localeCompare(String(a.date)) || String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+      });
+   var totalCost = list.reduce(function (sum, p) { return sum + (Number(p.totalCost) || 0); }, 0);
+   var totalQty = list.reduce(function (sum, p) { return sum + (Number(p.quantity) || 0); }, 0);
+   var slice = investorPageSlice(list, state.ip.page);
+   state.ip.page = slice.page;
+
+   var stats =
+      '<div class="stat-grid" style="margin-bottom:20px">' +
+      '<div class="stat-card red"><div class="sc-top"><div class="sc-icon"><i class="fas fa-wallet"></i></div><span class="sc-label">Total Belanja Investasi</span></div>' +
+      '<div class="sc-value">' + fmtRp(totalCost) + '</div><div class="sc-sub">' + ipPeriodLabel() + "</div></div>" +
+      '<div class="stat-card gold"><div class="sc-top"><div class="sc-icon"><i class="fas fa-receipt"></i></div><span class="sc-label">Transaksi</span></div>' +
+      '<div class="sc-value">' + list.length + ' <small style="font-size:13px;color:var(--text-muted)">(' + fmt(totalQty) + " item)</small></div>" +
+      '<div class="sc-sub">Hanya terlihat di ERP; portal investor menampilkan daftar tanpa total</div></div>' +
+      "</div>";
+
+   var tabs = IP_PERIODS.map(function (o) {
+      return (
+         '<button type="button" class="chart-tab' + (state.ip.period === o.value ? " active" : "") + '" onclick="onIPPeriod(\'' + o.value + "')\">" + o.label + "</button>"
+      );
+   }).join("");
+   var toolbar =
+      '<div class="table-toolbar">' +
+      '<div class="table-search"><i class="fas fa-search"></i><input type="text" id="ipSearch" class="form-input" placeholder="Cari barang..." value="' +
+      investorEsc(state.ip.search) + '" oninput="onIPSearch(this.value)"></div>' +
+      '<div class="table-filter date-preset-filter"><div class="chart-tabs">' + tabs + "</div>" +
+      (state.ip.period === "all" ? "" : '<input type="date" value="' + investorEsc(state.ip.date) + '" onchange="onIPDate(this.value)" aria-label="Tanggal periode">') +
+      "</div>" +
+      '<div class="responsive-action-group" style="margin-left:auto;display:flex;gap:8px;align-items:center">' +
+      '<button class="btn btn-primary btn-sm" onclick="openInvestorPurchaseModal()"><i class="fas fa-plus"></i>Tambah Belanja</button>' +
+      "</div></div>";
+
+   var rows = list.length
+      ? slice.items
+           .map(function (p) {
+              return (
+                 "<tr>" +
+                 "<td>" + investorFmtDate(p.date) + "</td>" +
+                 "<td><strong>" + investorEsc(p.itemName) + "</strong></td>" +
+                 "<td>" + (p.category ? investorEsc(p.category) : "-") + "</td>" +
+                 "<td>" + fmt(p.quantity) + " " + investorEsc(p.unit || "") + "</td>" +
+                 "<td>" + fmtRp(p.unitPrice) + "</td>" +
+                 '<td style="font-weight:600">' + fmtRp(p.totalCost) + "</td>" +
+                 '<td style="color:var(--text-muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' +
+                 investorEsc(p.note) + '">' + (p.note ? investorEsc(p.note) : "-") + "</td>" +
+                 '<td><div class="action-btns">' +
+                 '<button class="action-btn" title="Ubah" onclick="openInvestorPurchaseModal(\'' + p.id + "')\"><i class=\"fas fa-pen\"></i></button>" +
+                 '<button class="action-btn del" title="Hapus" onclick="confirmDeleteInvestorPurchase(\'' + p.id + "')\"><i class=\"fas fa-trash\"></i></button>" +
+                 "</div></td>" +
+                 "</tr>"
+              );
+           })
+           .join("")
+      : '<tr><td colspan="8"><div class="empty-state"><i class="fas fa-wallet"></i><h4>Belum ada belanja investasi</h4><p>Coba ubah periode, atau klik "Tambah Belanja" untuk mencatat belanja yang dibayar dari dana investasi.</p></div></td></tr>';
+
+   container.innerHTML =
+      stats +
+      '<div class="card">' +
+      toolbar +
+      '<div class="table-scroll"><table class="data-table">' +
+      "<thead><tr><th>Tanggal</th><th>Nama Barang</th><th>Kategori</th><th>Qty</th><th>Harga Satuan</th><th>Total</th><th>Catatan</th><th>Aksi</th></tr></thead>" +
+      "<tbody>" + rows + "</tbody></table></div>" +
+      investorTableFooterHTML(slice, list.length, "transaksi", "goIPPage") +
+      "</div>";
+};
+
+window.retryInvestorPurchases = function () {
+   state.ip.error = "";
+   ensureListenersForPage("belanjaInvestasi");
+   renderBelanjaInvestasi();
+};
+
+window.onIPPeriod = function (period) {
+   state.ip.period = period;
+   state.ip.page = 1;
+   renderBelanjaInvestasi();
+};
+
+window.onIPDate = function (value) {
+   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+   state.ip.date = value;
+   state.ip.page = 1;
+   renderBelanjaInvestasi();
+};
+
+window.onIPSearch = function (value) {
+   state.ip.search = value;
+   state.ip.page = 1;
+   renderBelanjaInvestasi();
+   var input = document.getElementById("ipSearch");
+   if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+   }
+};
+
+window.goIPPage = function (page) {
+   state.ip.page = page;
+   renderBelanjaInvestasi();
+};
+
+function investorPurchaseFormHTML(p) {
+   var v = p || { date: investorLocalToday(), itemName: "", category: "", quantity: 1, unit: "pcs", unitPrice: 0, totalCost: 0, note: "" };
+   return (
+      '<div class="form-row">' +
+      '<div class="form-group"><label>Tanggal</label><input type="date" class="form-input" id="fIPDate" value="' + investorEsc(v.date) + '"></div>' +
+      '<div class="form-group"><label>Kategori Belanja</label><input type="text" class="form-input" id="fIPCategory" value="' + investorEsc(v.category) + '" placeholder="Contoh: Bahan Baku"></div>' +
+      "</div>" +
+      '<div class="form-row"><div class="form-group full"><label>Nama Barang</label><input type="text" class="form-input" id="fIPItemName" value="' +
+      investorEsc(v.itemName) + '" placeholder="Contoh: Kain Canvas"></div></div>' +
+      '<div class="form-row">' +
+      '<div class="form-group"><label>Jumlah</label><input type="number" class="form-input" id="fIPQty" value="' + investorEsc(v.quantity) + '" min="0.01" step="0.01" oninput="calcIPTotal()"></div>' +
+      '<div class="form-group"><label>Satuan</label><input type="text" class="form-input" id="fIPUnit" value="' + investorEsc(v.unit || "pcs") + '" placeholder="pcs / meter / kg"></div>' +
+      "</div>" +
+      '<div class="form-group"><label>Harga Satuan (Rp)</label><input type="number" class="form-input" id="fIPUnitPrice" value="' + investorEsc(v.unitPrice) + '" min="0" oninput="calcIPTotal()"></div>' +
+      '<div style="padding:10px 14px;background:var(--primary-light);border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px">' +
+      'Total: <strong id="fIPTotalDisplay">' + fmtRp(v.totalCost) + "</strong></div>" +
+      '<div class="form-group"><label>Catatan</label><input type="text" class="form-input" id="fIPNote" value="' + investorEsc(v.note) + '" placeholder="Opsional"></div>'
+   );
+}
+
+window.calcIPTotal = function () {
+   var qty = parseFloat($("#fIPQty").value) || 0;
+   var el = $("#fIPTotalDisplay");
+   if (el) el.textContent = fmtRp(Math.round(qty * parsePrice($("#fIPUnitPrice").value)));
+};
+
+window.openInvestorPurchaseModal = function (docId) {
+   var p = docId ? state.investorPurchases.find(function (x) { return x.id === docId; }) : null;
+   if (docId && !p) return toast("Data tidak ditemukan", "error");
+   // Loads the Tanggal Efektif for the early-date warning on save.
+   startInvestorListeners();
+   var footer =
+      '<button type="button" class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" onclick="saveInvestorPurchase(' + (docId ? "'" + docId + "'" : "") + ')"><i class="fas fa-check"></i>' +
+      (docId ? "Update" : "Simpan") + "</button>";
+   openModal(docId ? "Ubah Belanja Investasi" : "Tambah Belanja Investasi", investorPurchaseFormHTML(p), footer);
+};
+
+window.saveInvestorPurchase = async function (docId) {
+   var date = $("#fIPDate").value;
+   var itemName = $("#fIPItemName").value.trim();
+   var qty = parseFloat($("#fIPQty").value) || 0;
+   var unitPrice = parsePrice($("#fIPUnitPrice").value);
+   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast("Tanggal wajib diisi", "warning");
+   if (!itemName) return toast("Nama barang wajib diisi", "warning");
+   if (!(qty > 0)) return toast("Jumlah harus lebih dari 0", "warning");
+
+   var uid = auth.currentUser ? auth.currentUser.uid : "";
+   var now = new Date().toISOString();
+   var data = {
+      date: date,
+      itemName: itemName,
+      category: $("#fIPCategory").value.trim(),
+      quantity: qty,
+      unit: $("#fIPUnit").value.trim() || "pcs",
+      unitPrice: unitPrice,
+      totalCost: Math.round(qty * unitPrice),
+      note: $("#fIPNote").value.trim(),
+      investorAgreementId: INVESTOR_AGREEMENT_ID,
+      updatedAt: now,
+      updatedBy: uid,
+   };
+
+   var saveBtn = $("#modalFooter .btn-primary");
+   saveBtn.disabled = true;
+   saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+   try {
+      if (docId) {
+         await db.collection("investor_purchases").doc(docId).update(data);
+         toast("Belanja investasi diperbarui", "success");
+      } else {
+         data.createdAt = now;
+         data.createdBy = uid;
+         await db.collection("investor_purchases").add(data);
+         toast("Belanja investasi dicatat", "success");
+      }
+      warnIfBeforeEffective(date);
+      closeModal();
+   } catch (err) {
+      console.error("Gagal menyimpan belanja investasi:", err);
+      toast("Gagal menyimpan: " + err.message, "error");
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = docId ? "Update" : "Simpan";
+   }
+};
+
+window.confirmDeleteInvestorPurchase = function (docId) {
+   var p = state.investorPurchases.find(function (x) { return x.id === docId; });
+   if (!p) return;
+   var body =
+      "<p>Hapus <strong>" + investorEsc(p.itemName) + "</strong> (" + investorFmtDate(p.date) + ", " + fmtRp(p.totalCost) + ")?</p>" +
+      '<p style="font-size:13px;color:var(--text-muted);margin-top:8px">Belanja ini juga hilang dari halaman Penggunaan Dana di portal investor.</p>';
+   var footer =
+      '<button type="button" class="btn btn-outline btn-sm" onclick="closeModal()">Batal</button>' +
+      '<button type="button" class="btn btn-danger btn-sm" onclick="deleteInvestorPurchase(\'' + docId + "')\"><i class=\"fas fa-trash\"></i>Hapus</button>";
+   openModal("Hapus Belanja Investasi", body, footer);
+};
+
+window.deleteInvestorPurchase = async function (docId) {
+   try {
+      await db.collection("investor_purchases").doc(docId).delete();
+      toast("Belanja investasi dihapus", "success");
+      closeModal();
+   } catch (err) {
+      console.error("Gagal menghapus belanja investasi:", err);
       toast("Gagal menghapus: " + err.message, "error");
    }
 };
