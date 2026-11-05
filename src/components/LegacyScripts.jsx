@@ -54,6 +54,8 @@ export default function LegacyScripts() {
         await loadScript("https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js");
         await loadScript("https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js");
         await loadScript("/legacy/app-runtime.js");
+        await loadScript("/legacy/faktur-calc.js");
+        await loadScript("/legacy/faktur.js");
       } catch (error) {
         console.error("[Inztamoto Legacy Runtime]", error);
       }

@@ -187,6 +187,9 @@ export default function InztamotoApp() {
                   <a href="#" className="nav-item" data-page="penjualan">
                      <i className="fas fa-receipt"></i>Penjualan
                   </a>
+                  <a href="#" className="nav-item" data-page="faktur" id="menuFaktur" style={{ display: "none" }}>
+                     <i className="fas fa-file-invoice"></i>Faktur
+                  </a>
                   <a href="#" className="nav-item" data-page="produk">
                      <i className="fas fa-box"></i>Produk
                   </a>
@@ -710,6 +713,11 @@ export default function InztamotoApp() {
                   {/* Investor: Tanggal Efektif and payments shown in the investor portal */}
                   <div className="page" id="pageInvestor">
                      {/* Rendered dynamically by renderInvestor() in app-runtime.js */}
+                  </div>
+
+                  {/* Faktur: invoices for customers and resellers, spec .kiro/specs/faktur */}
+                  <div className="page" id="pageFaktur">
+                     {/* Rendered dynamically by renderFaktur() in public/legacy/faktur.js */}
                   </div>
 
                   {/* Belanja Investasi: purchases paid from the investment, kept apart from Belanja Produksi */}
