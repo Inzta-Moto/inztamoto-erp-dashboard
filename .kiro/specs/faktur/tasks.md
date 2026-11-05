@@ -1,6 +1,6 @@
 # Tasks: Faktur (Invoice) di ERP
 
-Status: **siap dieksekusi** (2026-11-05). Q-1 sampai Q-9 dijawab sesuai rekomendasi atas arahan Sehan (bagian "Keputusan"). Butir ⚑ tetap dicek ke owner saat demo. Tidak ada task yang memakai Blaze atau Cloud Functions, dan tidak ada paket npm baru.
+Status: **Fase 1 dibangun dan diuji dengan data tiruan** (2026-11-05, branch `feat/faktur`); Task 1.14 sebagian, Task 1.15 menunggu uji Sehan dengan login asli. Q-1 sampai Q-9 dijawab sesuai rekomendasi atas arahan Sehan (bagian "Keputusan"). Butir ⚑ tetap dicek ke owner saat demo. Tidak ada task yang memakai Blaze atau Cloud Functions, dan tidak ada paket npm baru.
 
 Aturan verifikasi untuk setiap task kode:
 - `npm run build` lulus, dan output-nya dicatat.
@@ -24,41 +24,41 @@ Aturan verifikasi untuk setiap task kode:
 ## Phase 1: MVP faktur (FR-1 sampai FR-5, FR-6.1–6.5, FR-7.1–7.3, FR-8.1–8.8, FR-10, FR-12)
 
 ### Fondasi
-- [ ] **Task 1.1**: Kabel di runtime dan markup: `#pageFaktur`, `nav-item` `#menuFaktur`, `TITLES.faktur`, `case "faktur"`, guard peran di `navigateTo`, tampil/sembunyi menu di `updateNavigationAccess`, hook `fakturCleanup` di `cleanupAppSession`. Muat `/legacy/faktur-calc.js` dan `/legacy/faktur.js` setelah `app-runtime.js` di `LegacyScripts.jsx`.
+- [x] **Task 1.1**: Kabel di runtime dan markup: `#pageFaktur`, `nav-item` `#menuFaktur`, `TITLES.faktur`, `case "faktur"`, guard peran di `navigateTo`, tampil/sembunyi menu di `updateNavigationAccess`, hook `fakturCleanup` di `cleanupAppSession`. Muat `/legacy/faktur-calc.js` dan `/legacy/faktur.js` setelah `app-runtime.js` di `LegacyScripts.jsx`.
   - Selesai bila: owner/admin melihat menu Faktur dengan halaman kosong "Belum ada faktur"; peran lain tidak melihat menu dan `navigateTo("faktur")` kembali ke Dashboard (AC-8); `node scripts/patch-runtime.cjs` pada salinan file tetap berhasil; build lulus.
-- [ ] **Task 1.2**: `public/legacy/faktur-calc.js` (design §4.2) dan `scripts/faktur-calc.test.cjs` memakai `node:test` dan `node:assert` bawaan.
+- [x] **Task 1.2**: `public/legacy/faktur-calc.js` (design §4.2) dan `scripts/faktur-calc.test.cjs` memakai `node:test` dan `node:assert` bawaan.
   - Kasus tes minimal: 4 kasus di design §4.3; diskon persen 0 dan 100; diskon nominal melebihi harga; total tidak negatif; pembulatan .5; `paymentStatus` untuk dibayar 0, sebagian, sama dengan total; `isOpen` untuk draft, issued, cancelled; `formatInvoiceNumber` 9, 43, 9999, 10000; `daysOverdue` sebelum, pada, dan sesudah jatuh tempo, termasuk lintas bulan.
   - Selesai bila: semua tes lulus dan output dicatat.
-- [ ] **Task 1.3**: Listener lazy di `faktur.js`: `invoices_recent` (50 terbaru), `invoices_open` (`isOpen == true`), `invoice_settings`. Daftarkan ke `LAZY_LISTENERS` dan `LAZY_LISTENERS_BY_PAGE.faktur`. Pesan khusus untuk `resource-exhausted` seperti halaman Belanja Investasi (`app-runtime.js:920-928`).
+- [x] **Task 1.3**: Listener lazy di `faktur.js`: `invoices_recent` (50 terbaru), `invoices_open` (`isOpen == true`), `invoice_settings`. Daftarkan ke `LAZY_LISTENERS` dan `LAZY_LISTENERS_BY_PAGE.faktur`. Pesan khusus untuk `resource-exhausted` seperti halaman Belanja Investasi (`app-runtime.js:920-928`).
   - Selesai bila: login tanpa membuka Faktur tidak memanggil koleksi faktur (AC-7, dicek di tab Network/console); membuka Faktur memuat data.
 
 ### Pengaturan dan penomoran
-- [ ] **Task 1.4**: Layar Pengaturan faktur (design §9.5): logo lewat Cloudinary, nama, alamat, rekening (tambah/hapus), syarat, jatuh tempo default, prefix, pajak default. Nomor berikutnya tampil baca saja.
+- [x] **Task 1.4**: Layar Pengaturan faktur (design §9.5): logo lewat Cloudinary, nama, alamat, rekening (tambah/hapus), syarat, jatuh tempo default, prefix, pajak default. Nomor berikutnya tampil baca saja.
   - Form "Mulai penomoran" muncul bila counter untuk prefix aktif belum ada: isi prefix dan nomor pertama, lalu buat `counters/invoice_{PREFIX}` dengan transaksi yang gagal bila dokumen sudah ada (tidak pernah menimpa counter).
   - Selesai bila: perubahan tersimpan di `invoice_settings/default` dan tampil di pratinjau draf; counter `invoice_UJI` (mulai 1) dibuat untuk uji, dan `invoice_INV` (mulai 101) dibuat saat go-live.
-- [ ] **Task 1.5**: `issueInvoice()` dengan `runTransaction` (design §4.1), snapshot `business`, dan audit `issuedAt/issuedBy`. Pesan jelas saat offline.
+- [x] **Task 1.5**: `issueInvoice()` dengan `runTransaction` (design §4.1), snapshot `business`, dan audit `issuedAt/issuedBy`. Pesan jelas saat offline.
   - Selesai bila: uji dua tab/perangkat menerbitkan bersamaan menghasilkan dua nomor berbeda berurutan (AC-2); offline menampilkan pesan dan isian tidak hilang.
 
 ### Editor
-- [ ] **Task 1.6**: Kerangka editor penuh halaman: header (kembali, nomor/DRAF, Sunting/Pratinjau), bagian Pelanggan, Tanggal & jatuh tempo (default +7 hari), Catatan, bar bawah menempel. Draf lokal di `localStorage` selama mengetik.
+- [x] **Task 1.6**: Kerangka editor penuh halaman: header (kembali, nomor/DRAF, Sunting/Pratinjau), bagian Pelanggan, Tanggal & jatuh tempo (default +7 hari), Catatan, bar bawah menempel. Draf lokal di `localStorage` selama mengetik.
   - Selesai bila: tanpa scroll horizontal di 320 px; refresh di tengah mengetik memulihkan isian; jatuh tempo sebelum tanggal faktur ditolak.
-- [ ] **Task 1.7**: Pelanggan: saklar Reseller dengan pilihan dari `state.resellers` aktif; retail dengan saran dari faktur yang sudah dimuat (FR-3).
+- [x] **Task 1.7**: Pelanggan: saklar Reseller dengan pilihan dari `state.resellers` aktif; retail dengan saran dari faktur yang sudah dimuat (FR-3).
   - Selesai bila: memilih reseller mengisi nama dan label; saran retail tidak menambah read.
-- [ ] **Task 1.8**: Pemilih produk (lembar bawah/modal) dari `state.products` dengan cari nama/SKU; item manual; edit item (nama, catatan, harga, diskon item); stepper qty; ubah urutan dan hapus. Foto memakai transform `w_200`.
+- [x] **Task 1.8**: Pemilih produk (lembar bawah/modal) dari `state.products` dengan cari nama/SKU; item manual; edit item (nama, catatan, harga, diskon item); stepper qty; ubah urutan dan hapus. Foto memakai transform `w_200`.
   - Selesai bila: menambah 10 item di HP 360 px tanpa mengetik nama atau harga (bagian dari AC-1); batas 50 item ditegakkan.
-- [ ] **Task 1.9**: Ringkasan dan pembayaran: diskon faktur, pajak, ongkir, biaya lain, Dibayar, Tandai lunas, semua lewat `FakturCalc`. Simpan draf, Terbitkan, Simpan (faktur terbit), Hapus draf, Batalkan dengan alasan. Audit `createdBy/updatedBy/paidBy/cancelledBy`.
+- [x] **Task 1.9**: Ringkasan dan pembayaran: diskon faktur, pajak, ongkir, biaya lain, Dibayar, Tandai lunas, semua lewat `FakturCalc`. Simpan draf, Terbitkan, Simpan (faktur terbit), Hapus draf, Batalkan dengan alasan. Audit `createdBy/updatedBy/paidBy/cancelledBy`.
   - Selesai bila: angka layar sama dengan kasus design §4.3 (AC-3); status berpindah Belum dibayar → Sebagian → Lunas (AC-4); total di bawah Dibayar ditolak; faktur batal menyimpan nomor dan nomor berikutnya baru (AC-5).
 
 ### Dokumen dan bagikan
-- [ ] **Task 1.10**: Spike 1–2 jam sebelum memilih opsi PNG: uji CORS foto Cloudinary di canvas dan uji opsi A (html2canvas dari CDN) di Chrome Android, termasuk faktur 50 item.
+- [x] **Task 1.10**: Spike opsi PNG: CORS Cloudinary dan html2canvas dari CDN diuji di Chrome desktop (lulus). Uji di Chrome Android dan faktur 50 item masuk Task 1.14.
   - Selesai bila: hasil spike dan pilihan opsi (A atau B) dicatat di design §6.2.
-- [ ] **Task 1.11**: `renderInvoiceDocument()` (design §6.1): header, Tagih kepada, tabel item dengan harga asli dan diskon, ringkasan tanpa baris 0, rekening, syarat, cap LUNAS/BATAL, format `fmtRp` dan tanggal Indonesia.
+- [x] **Task 1.11**: `renderInvoiceDocument()` (design §6.1): header, Tagih kepada, tabel item dengan harga asli dan diskon, ringkasan tanpa baris 0, rekening, syarat, cap LUNAS/BATAL, format `fmtRp` dan tanggal Indonesia.
   - Selesai bila: tidak ada angka yang terpotong pada nominal sampai Rp 999.999.999; mengubah pengaturan tidak mengubah faktur terbit (AC-6).
-- [ ] **Task 1.12**: Bagikan gambar dua langkah (Siapkan → Bagikan) dengan Web Share API dan fallback unduh; PDF lewat `window.print()` dengan CSS cetak; teks WhatsApp `wa.me`; catat `lastSharedAt`.
+- [x] **Task 1.12**: Bagikan gambar dua langkah (Siapkan → Bagikan) dengan Web Share API dan fallback unduh; PDF lewat `window.print()` dengan CSS cetak; teks WhatsApp `wa.me`; catat `lastSharedAt`.
   - Selesai bila: di Chrome Android, gambar 10 item terkirim ke WhatsApp (AC-1) dan ukurannya < 1,5 MB (NFR-5); PDF A4 rapi tanpa baris terpotong; di desktop gambar terunduh.
 
 ### Daftar
-- [ ] **Task 1.13**: Daftar faktur: kartu ringkas (piutang, lewat tempo, ditagih bulan ini), chip filter, cari, filter bulan/tahun dengan `.get()` untuk periode yang belum dimuat, kartu di HP dan tabel di desktop, Muat lebih banyak.
+- [x] **Task 1.13**: Daftar faktur: kartu ringkas (piutang, lewat tempo, ditagih bulan ini), chip filter, cari, filter bulan/tahun dengan `.get()` untuk periode yang belum dimuat, kartu di HP dan tabel di desktop, Muat lebih banyak.
   - Selesai bila: angka kartu piutang sama dengan jumlah saldo faktur terbuka; filter Lewat jatuh tempo menampilkan jumlah hari yang benar.
 
 ### Gerbang mutu Fase 1
@@ -128,3 +128,11 @@ Dijawab 2026-11-05 sesuai rekomendasi, atas arahan Sehan. Butir ⚑ di requireme
 | Q-9 | Tidak ada link publik. Gambar PNG dan PDF sudah cukup; Task 3.3 tidak dikerjakan kecuali owner memintanya. |
 
 Konsekuensi untuk design: counter dibuat per prefix (`counters/invoice_{PREFIX}`), bukan satu `counters/invoices` (design §3.4).
+
+## Catatan verifikasi Fase 1 (2026-11-05)
+- `npm test`: 15 tes `faktur-calc` lulus. `npm run build`: lulus.
+- Uji alur di localhost memakai halaman uji dengan Firestore tiruan di memori, karena tidak ada staging dan Firestore Emulator butuh Java yang tidak terpasang. Yang diuji: daftar, kartu ringkas, 7 filter, cari, periode, muat lebih banyak, editor (isian otomatis dari riwayat, pemilih produk, item manual, diskon item/faktur, pajak, ongkir, dibayar), contoh hitung design §4.3 kasus 1 dan 2, simpan draf, terbitkan (`UJI0005`, lalu `INV0101` dengan counter terpisah), tandai lunas, edit terbit (total di bawah dibayar ditolak), batal (nomor tidak dipakai ulang), hapus draf, deteksi bentrok versi, pulihkan isian setelah refresh, pengaturan dan Mulai penomoran (menolak counter yang sudah ada), offline, kuota habis, peran non-admin, logout.
+- Gambar PNG 1080 px (sekitar 195 KB untuk 3 item) dibuat dengan html2canvas 1.4.1 dari cdnjs. Header CORS Cloudinary dicek: `Access-Control-Allow-Origin: *`. Opsi A dipakai (Q-1).
+- Tampilan dicek di 320, 360, dan 1280 px tanpa scroll horizontal. ERP asli dijalankan di localhost dengan env checkout utama: urutan script benar, tidak ada error console, menu Faktur tersembunyi sebelum login.
+- Review independen (agent code-reviewer) menemukan 3 masalah sedang dan 4 kecil; semuanya diperbaiki dan diuji ulang (salinan periode basi, XSS lewat toast, render ulang saat mengetik, edit selama menyimpan, kembali saat menyimpan, total bulan ini saat lebih dari 50 faktur, pembersihan cetak di Android).
+- Belum diuji: login asli ke database produksi, tombol bagikan dan PDF di HP Android, faktur 50 item di canvas Android, dan dua perangkat menerbitkan bersamaan (keamanan nomor bergantung pada transaksi Firestore; halaman uji tidak mensimulasikan retry transaksi). Semua masuk Task 1.14 dan 1.15.

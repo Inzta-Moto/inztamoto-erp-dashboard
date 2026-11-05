@@ -630,6 +630,7 @@ function cleanupAppSession() {
    state.listeners = [];
    state.lazyListening = {};
    state.investor.listening = false;
+   if (typeof fakturCleanup === "function") fakturCleanup();
    appInitialized = false;
    state.user = null;
 }
@@ -740,6 +741,8 @@ function updateNavigationAccess() {
    const investorPurchaseMenu = $("#menuBelanjaInvestasi");
    if (investorPurchaseMenu)
       investorPurchaseMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   const fakturMenu = $("#menuFaktur");
+   if (fakturMenu) fakturMenu.style.display = isOwnerOrAdmin ? "" : "none";
 }
 
 /* =========================================================
@@ -1009,6 +1012,10 @@ function renderCurrentPage() {
       case "belanjaInvestasi":
          renderBelanjaInvestasi();
          break;
+      case "faktur":
+         // faktur.js loads after this file, so the page can be asked to render before it exists.
+         if (typeof renderFaktur === "function") renderFaktur();
+         break;
    }
 }
 
@@ -1093,6 +1100,7 @@ const TITLES = {
    reseller: "Reseller Management",
    investor: "Investor",
    belanjaInvestasi: "Belanja Investasi",
+   faktur: "Faktur",
 };
 
 function navigateTo(page) {
@@ -1134,6 +1142,11 @@ function navigateTo(page) {
       _roleForInvestor !== "admin"
    ) {
       toast("Akses Investor hanya untuk Owner atau Admin", "error");
+      page = "dashboard";
+   }
+   const _roleForFaktur = getCurrentUserRole();
+   if (page === "faktur" && _roleForFaktur !== "owner" && _roleForFaktur !== "admin") {
+      toast("Akses Faktur hanya untuk Owner atau Admin", "error");
       page = "dashboard";
    }
    updateNavigationAccess();

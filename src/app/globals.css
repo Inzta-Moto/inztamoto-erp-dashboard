@@ -1239,3 +1239,208 @@ select.form-input {
     align-self: center;
   }
 }
+
+/* Faktur (spec .kiro/specs/faktur): mobile-first, built on the ERP tokens above. */
+#pageFaktur { padding-bottom: 96px }
+.fk-stats { margin-bottom: 16px }
+.fk-stat-small { font-size: 13px; color: var(--text-muted); font-weight: 600 }
+.fk-muted { color: var(--text-muted) }
+.fk-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums }
+.fk-tag { display: inline-block; padding: 1px 8px; border-radius: 6px; background: #FFFBEB; color: #92400E; font-size: 11px; font-weight: 700; vertical-align: middle }
+.fk-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--primary-light); font-size: 13px }
+.fk-banner > div { flex: 1; min-width: 200px }
+.fk-banner > i { color: var(--accent) }
+.fk-banner-soft { background: #fff; margin-bottom: 12px }
+.fk-toolbar .table-search { max-width: 360px }
+.fk-period { display: flex; gap: 8px }
+.fk-toolbar-actions { display: flex; gap: 8px; margin-left: auto }
+.fk-chips { display: flex; gap: 6px; padding: 10px 20px; overflow-x: auto; border-bottom: 1px solid var(--border-light); scrollbar-width: none }
+.fk-chips::-webkit-scrollbar { display: none }
+.fk-chip { flex: 0 0 auto; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; color: var(--text-muted); min-height: 36px }
+.fk-chip.active { background: #1A1A1A; border-color: #1A1A1A; color: #FCD34D }
+.fk-row { cursor: pointer }
+.fk-row:hover td { background: #FFFDF5 }
+.fk-cards { display: none }
+.fk-load-more { display: flex; justify-content: center; padding: 14px }
+.fk-fab { display: none }
+.fk-badge::before { display: none }
+.fk-badge-draft { background: #F1F3F4; color: #5F6368 }
+.fk-badge-unpaid { background: #FFFBEB; color: #B45309 }
+.fk-badge-partial { background: #E8F0FE; color: #1A56C9 }
+.fk-badge-overdue { background: #FCE8E6; color: #C5221F }
+.fk-badge-paid { background: #E6F4EA; color: #137333 }
+.fk-badge-cancelled { background: #F1F3F4; color: #5F6368; text-decoration: line-through }
+
+.fk-editor { max-width: 860px; margin: 0 auto }
+.fk-editor-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px }
+.fk-back { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: #fff; display: inline-flex; align-items: center; justify-content: center; color: var(--text) }
+.fk-editor-title { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0 }
+.fk-editor-title h2 { font-size: 20px; font-weight: 800; color: #1A1A1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.fk-tabs .chart-tab { min-height: 36px; padding: 6px 16px }
+.fk-tabs .chart-tab:disabled { opacity: .4; cursor: not-allowed }
+.fk-form { display: flex; flex-direction: column; gap: 14px }
+.fk-section { height: auto }
+.fk-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border-light) }
+.fk-section-head h3 { font-size: 15px; font-weight: 700; color: #1A1A1A }
+.fk-section-body { padding: 16px 18px }
+.fk-section-body .form-group:last-child { margin-bottom: 0 }
+.fk-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 36px }
+.fk-switch input { width: 18px; height: 18px; accent-color: #1A1A1A }
+.fk-inline { display: flex; gap: 8px; align-items: center; min-width: 0 }
+.fk-inline .form-input { min-width: 0 }
+.fk-type { flex: 0 0 150px }
+.fk-short { flex: 0 0 110px; max-width: 110px }
+.fk-hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5 }
+.fk-hint-error { color: var(--danger); font-weight: 600 }
+.fk-link { color: #B45309; font-weight: 700; text-decoration: underline; font-size: 12px }
+.fk-danger-text { color: var(--danger) }
+.fk-empty-items { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--text-muted); font-size: 13px }
+.fk-item { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border-light) }
+.fk-item-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; padding: 4px 0; min-height: 52px }
+.fk-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--border-light); background: #fff }
+.fk-thumb-empty { display: inline-flex; align-items: center; justify-content: center; background: var(--primary-light); color: var(--text-muted) }
+.fk-item-text { display: flex; flex-direction: column; min-width: 0; flex: 1 }
+.fk-item-name { font-weight: 700; font-size: 14px; color: #1A1A1A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fk-item-note { font-size: 12px; color: var(--text-muted) }
+.fk-item-price { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums }
+.fk-item-total { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums }
+.fk-disc { color: var(--success); font-weight: 700 }
+.fk-stepper { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex-shrink: 0 }
+.fk-stepper button { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--text) }
+.fk-stepper button:hover { background: var(--primary-light) }
+.fk-stepper span { min-width: 30px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums }
+.fk-summary { display: flex; flex-direction: column; gap: 12px }
+.fk-sum-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px }
+.fk-sum-row strong { font-variant-numeric: tabular-nums; white-space: nowrap }
+.fk-sum-total { font-size: 17px; padding-top: 10px; border-top: 1px solid var(--border-light) }
+.fk-sum-edit { display: grid; grid-template-columns: 130px 1fr 110px; gap: 10px; align-items: center }
+.fk-sum-edit label { font-size: 13px; font-weight: 600 }
+.fk-sum-amount { text-align: right; font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap }
+.fk-audit { margin-top: 14px; font-size: 12px; color: var(--text-muted); line-height: 1.7 }
+.fk-bottom-bar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 12px 0; background: #fff; border-top: 1px solid var(--border-light) }
+.fk-bottom-bar .btn { min-height: 44px }
+.fk-bar-note { font-size: 12px; margin-right: auto }
+.fk-icon-btn { width: 44px; padding: 0 }
+
+.fk-paper-wrap { position: relative; width: 100%; overflow: hidden; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06); background: #fff }
+.fk-offscreen { position: fixed; left: -12000px; top: 0; width: 720px; background: #fff }
+
+.fk-sheet-overlay { position: fixed; inset: 0; z-index: 250; background: rgba(26,26,26,.35); display: flex; align-items: center; justify-content: center; padding: 20px }
+.fk-sheet { background: #fff; border-radius: 16px; width: 100%; max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.18) }
+.fk-sheet-tall { height: 80vh }
+.fk-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border) }
+.fk-sheet-head h3 { font-size: 16px; font-weight: 700 }
+.fk-sheet-body { padding: 16px 20px; overflow-y: auto; flex: 1 }
+.fk-sheet-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding: 12px 20px; border-top: 1px solid var(--border); background: #FAF9F6; border-radius: 0 0 16px 16px }
+.fk-sheet-foot .btn { min-height: 44px }
+.fk-sheet-foot > .fk-muted { margin-right: auto; font-size: 12px }
+.fk-sheet-tools { display: flex; gap: 6px; margin-right: auto }
+.fk-sheet-text { font-size: 14px; line-height: 1.6; margin-bottom: 12px }
+body.fk-sheet-open { overflow: hidden }
+.fk-picker-search { max-width: none; margin-bottom: 12px }
+.fk-picker-list { display: flex; flex-direction: column }
+.fk-pick { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border-light); text-align: left; min-height: 60px }
+.fk-pick:hover { background: var(--primary-light) }
+.fk-pick-text { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: 12px }
+.fk-pick-price { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-size: 13px; white-space: nowrap }
+.fk-pick-count { font-size: 11px; color: var(--success); font-weight: 700 }
+
+.fk-logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px }
+.fk-logo-preview { width: 64px; height: 64px; border-radius: 12px; object-fit: contain; border: 1px solid var(--border-light); display: inline-flex; align-items: center; justify-content: center }
+.fk-bank-row { display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 36px; gap: 8px; align-items: center; margin-bottom: 8px }
+.fk-number-info { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--primary-light) }
+.fk-number-info strong { font-size: 18px; letter-spacing: .02em }
+
+/* Invoice document: fixed 720px design width, scaled down on screen and exported at 1080px. */
+.inv-doc { position: relative; width: 720px; padding: 36px 36px 32px; background: #fff; color: #1C1917; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; line-height: 1.5 }
+.inv-doc-head { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 22px }
+.inv-doc-brand { display: flex; align-items: center; gap: 14px; min-width: 0 }
+.inv-doc-logo { width: 64px; height: 64px; object-fit: contain; border-radius: 50% }
+.inv-doc-bname { font-size: 17px; font-weight: 800; letter-spacing: .02em }
+.inv-doc-addr { color: #78716C; font-size: 11px }
+.inv-doc-title { text-align: right; white-space: nowrap }
+.inv-doc-h { font-size: 26px; font-weight: 800; letter-spacing: .06em; line-height: 1.1 }
+.inv-doc-no { font-size: 13px; font-weight: 700; margin: 2px 0 4px }
+.inv-doc-bill { margin-bottom: 16px }
+.inv-doc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #78716C; margin-bottom: 3px }
+.inv-doc-cname { font-size: 14px; font-weight: 700 }
+.inv-doc-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border: 1px solid #1C1917; border-radius: 4px; vertical-align: middle }
+.inv-doc-table { width: 100%; border-collapse: collapse; margin-bottom: 18px }
+.inv-doc-table th { background: #F5F5F4; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #57534E; text-align: left; padding: 8px 6px }
+.inv-doc-table td { padding: 8px 6px; border-bottom: 1px solid #E7E5E4; vertical-align: middle }
+.inv-doc-table tr { break-inside: avoid; page-break-inside: avoid }
+.inv-doc-table th.inv-doc-r { text-align: right }
+.inv-doc-table th.inv-doc-c { text-align: center }
+.inv-doc-c { text-align: center; width: 28px }
+.inv-doc-r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums }
+.inv-doc-img { width: 64px }
+.inv-doc-img img, .inv-doc-noimg { display: block; width: 56px; height: 56px; object-fit: cover; border-radius: 6px; background: #F5F5F4 }
+.inv-doc-item { font-weight: 600 }
+.inv-doc-note { color: #78716C; font-size: 11px }
+.inv-doc-strong { font-weight: 700 }
+.inv-doc-bottom { display: flex; justify-content: space-between; gap: 24px; break-inside: avoid; page-break-inside: avoid }
+.inv-doc-pay { flex: 1; min-width: 0 }
+.inv-doc-bank { margin-bottom: 6px }
+.inv-doc-sum { width: 300px; flex-shrink: 0 }
+.inv-doc-sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-variant-numeric: tabular-nums }
+.inv-doc-sum-row span:last-child { white-space: nowrap }
+.inv-doc-sum-total { border-top: 1px solid #1C1917; margin-top: 4px; padding-top: 6px; font-weight: 800; font-size: 13px }
+.inv-doc-sum-due { font-weight: 800; font-size: 14px }
+.inv-doc-block { margin-top: 16px; break-inside: avoid; page-break-inside: avoid }
+.inv-doc-stamp { position: absolute; top: 150px; right: 40px; padding: 6px 18px; border: 3px solid; border-radius: 8px; font-size: 26px; font-weight: 800; letter-spacing: .12em; transform: rotate(-12deg); opacity: .85 }
+.inv-doc-stamp-lunas { color: #15803D }
+.inv-doc-stamp-batal { color: #DC2626 }
+.inv-doc-stamp-draf { color: #A8A29E }
+
+#fkPrintRoot { display: none }
+@media print {
+  body.fk-printing > *:not(#fkPrintRoot) { display: none !important }
+  body.fk-printing #fkPrintRoot { display: block }
+  body.fk-printing .inv-doc { width: auto; padding: 0 }
+  @page { size: A4; margin: 12mm }
+}
+
+@media (max-width: 768px) {
+  #pageFaktur .fk-stats { display: flex; overflow-x: auto; gap: 10px; scroll-snap-type: x mandatory; scrollbar-width: none }
+  #pageFaktur .fk-stats .stat-card { flex: 0 0 78%; scroll-snap-align: start; padding: 16px }
+  #pageFaktur .fk-stats .sc-value { font-size: 20px }
+  .fk-toolbar .table-search { max-width: none }
+  .fk-period select { flex: 1 }
+  .fk-toolbar-actions { margin-left: 0 }
+  .fk-toolbar-actions .fk-new-btn { display: none }
+  .fk-chips { padding: 10px 16px }
+  .fk-table-wrap { display: none }
+  .fk-cards { display: flex; flex-direction: column }
+  .fk-card { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border-light); background: #fff }
+  .fk-card:active { background: var(--primary-light) }
+  .fk-card-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px }
+  .fk-card-name { font-weight: 700; font-size: 14px; color: #1A1A1A; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  .fk-card-total { font-weight: 800; font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums }
+  .fk-card-note { text-align: right }
+  .fk-fab { display: inline-flex; position: fixed; right: 18px; bottom: 22px; z-index: 30; width: 56px; height: 56px; border-radius: 16px; align-items: center; justify-content: center; background: #1A1A1A; color: #FCD34D; font-size: 20px; box-shadow: 0 8px 24px rgba(0,0,0,.25) }
+  .fk-tabs { width: 100% }
+  .fk-tabs .chart-tab { flex: 1 }
+  .fk-section-head, .fk-section-body { padding-left: 14px; padding-right: 14px }
+  .fk-item { padding: 10px 14px; flex-wrap: wrap }
+  .fk-item-main { flex-basis: 100% }
+  .fk-stepper { margin-left: 56px }
+  .fk-sum-edit { grid-template-columns: 1fr auto }
+  .fk-sum-edit label { grid-column: 1 / -1 }
+  .fk-type { flex-basis: 130px }
+  .fk-short { flex-basis: 90px; max-width: 90px }
+  .fk-bottom-bar { padding: 10px 0 }
+  .fk-bottom-bar .btn { flex: 1 }
+  .fk-bottom-bar .fk-icon-btn { flex: 0 0 44px }
+  .fk-bar-note { flex-basis: 100% }
+  .fk-sheet-overlay { align-items: flex-end; padding: 0 }
+  .fk-sheet { max-width: none; border-radius: 16px 16px 0 0; max-height: 92vh }
+  .fk-sheet-tall { height: 88vh }
+  .fk-sheet-foot { border-radius: 0 }
+  .fk-bank-row { grid-template-columns: 1fr 36px; padding-bottom: 10px; border-bottom: 1px solid var(--border-light) }
+  .fk-bank-row input:nth-child(2), .fk-bank-row input:nth-child(3) { grid-column: 1 / -1 }
+  .fk-bank-row button { grid-column: 2 / 3; grid-row: 1 }
+}
+@media (max-width: 380px) {
+  .fk-type { flex-basis: 112px }
+  .fk-editor-title h2 { font-size: 17px }
+}
