@@ -1,6 +1,6 @@
 # Requirements Document: Faktur (Invoice) di ERP
 
-Status: **draf, menunggu persetujuan Sehan** (2026-11-04). Belum ada kode. Keputusan default di dokumen ini mengikuti `riset-video-faktur.md` §9b, yang disetujui Sehan pada 2026-11-04 sebagai keputusan sementara. Butir bertanda ⚑ perlu dicek ke owner saat demo pertama.
+Status: **disetujui untuk dieksekusi** (2026-11-05); jawaban Q-1 sampai Q-9 ada di `tasks.md` bagian Keputusan. Belum ada kode. Keputusan default di dokumen ini mengikuti `riset-video-faktur.md` §9b, yang disetujui Sehan pada 2026-11-04 sebagai keputusan sementara. Butir bertanda ⚑ perlu dicek ke owner saat demo pertama.
 
 Sumber:
 - Riset 3 video demo dan PDF contoh: `C:\Users\PLN\Downloads\inzta-erp-faktur-riset\riset-video-faktur.md` (di luar repo, berisi data yang sudah disamarkan).
@@ -64,7 +64,7 @@ Menyediakan menu **Faktur** di ERP. Konsepnya sama dengan aplikasi lama (daftar,
 ### FR-1: Pengaturan faktur
 - **FR-1.1**: Owner/admin bisa mengatur: nama bisnis, alamat singkat, logo (unggah lewat Cloudinary seperti foto produk), satu atau lebih rekening (bank, nomor, atas nama), teks Syarat & Ketentuan default, jatuh tempo default dalam hari (awal 7), prefix nomor (awal `INV`), dan pajak default (awal "Tidak ada").
 - **FR-1.2**: Setiap faktur menyimpan salinan (snapshot) profil bisnis, rekening, dan syarat saat faktur diterbitkan. Mengubah pengaturan tidak mengubah faktur lama.
-- **FR-1.3**: Nomor awal bisa diatur sekali sebelum faktur pertama, supaya urutan melanjutkan nomor terakhir aplikasi lama dan tidak bentrok (contoh fiktif: melanjutkan dari `INV0042`). ⚑
+- **FR-1.3**: Nomor awal bisa diatur sekali sebelum faktur pertama, supaya urutan melanjutkan nomor terakhir aplikasi lama dan tidak bentrok. Keputusan Q-2 (2026-11-05): faktur ERP pertama `INV0101`. Uji memakai prefix `UJI` dengan counter terpisah (Q-4).
 
 ### FR-2: Nomor faktur
 - **FR-2.1**: Nomor dibuat otomatis saat faktur **diterbitkan**, dengan format `{prefix}{urut 4 digit}`, contoh fiktif `INV0043`. Bila urutan melewati 9999, digit bertambah (`INV10000`).

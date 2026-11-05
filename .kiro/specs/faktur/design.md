@@ -1,6 +1,6 @@
 # Design Document: Faktur (Invoice) di ERP
 
-Status: **draf, belum dieksekusi** (2026-11-04). Rujukan baris memakai `main` commit `1b0dcac`. Semua contoh angka dan nama **fiktif**.
+Status: **disetujui, belum dieksekusi** (2026-11-05). Rujukan baris memakai `main` commit `1b0dcac`. Semua contoh angka dan nama **fiktif**.
 
 ## 1. Overview & Architecture
 
@@ -14,7 +14,7 @@ graph TD
     Editor --> Picker["Pemilih produk<br/>dari state.products (0 read)"]
     Editor --> Calc["faktur-calc.js<br/>fungsi murni + tes node:test"]
     Editor -->|Simpan draf| Draft["invoices/{id} status draft"]
-    Editor -->|Terbitkan| Tx["runTransaction:<br/>counters/invoices + invoice_settings + invoices/{id}"]
+    Editor -->|Terbitkan| Tx["runTransaction:<br/>invoice_settings + counters/invoice_PREFIX + invoices/{id}"]
     Editor --> Doc["renderInvoiceDocument()<br/>satu HTML untuk pratinjau, cetak, gambar"]
     Doc --> PNG["PNG → Web Share API / unduh"]
     Doc --> PDF["window.print() → Simpan sebagai PDF"]
@@ -103,8 +103,10 @@ Ukuran: 50 item × sekitar 400 byte ≈ 20 KB per dokumen, jauh di bawah batas 1
 ### 3.3 `invoice_settings/default`
 `{ businessName, address, logoUrl, bankAccounts: [{ bank, number, holder }], terms, defaultDueDays: 7, numberPrefix: "INV", numberPad: 4, defaultTax: { type, value, label }, updatedAt, updatedBy }`
 
-### 3.4 `counters/invoices`
-`{ next: 43, lastInvoiceId, updatedAt }`. `next` adalah nomor yang akan dipakai faktur terbit berikutnya. Dokumen ini dibuat sekali di Task 0.4 dengan nomor awal yang disepakati.
+### 3.4 `counters/invoice_{PREFIX}`
+`{ prefix: "INV", next: 101, lastInvoiceId, createdAt, createdBy, updatedAt }`. `next` adalah nomor yang akan dipakai faktur terbit berikutnya dengan prefix itu. Satu dokumen per prefix (keputusan Q-4, 2026-11-05): uji di produksi memakai `invoice_UJI`, faktur asli memakai `invoice_INV` yang mulai dari 101 (Q-2), sehingga uji tidak pernah memakan nomor `INV`.
+
+Dokumen dibuat oleh form "Mulai penomoran" (Task 1.4) di dalam transaksi yang gagal bila dokumen sudah ada, jadi counter tidak pernah tertimpa. Faktur menyimpan `numberPrefix` di samping `number` dan `numberSeq`; keunikan berlaku per prefix.
 
 Counter dipisah dari pengaturan supaya rules bisa membatasi perubahan counter hanya "+1" (§5), dan mengedit pengaturan tidak bersaing dengan penerbitan.
 
@@ -137,16 +139,19 @@ Perbandingan: membuka dasbor membaca sekitar 3.900 dokumen (spec `firestore-read
 ```javascript
 // Draft first, then issue: the number is taken only when the invoice becomes final, so abandoned drafts never leave gaps.
 function issueInvoice(invoiceId, draft) {
-   const counterRef = db.collection("counters").doc("invoices");
    const settingsRef = db.collection("invoice_settings").doc("default");
    const invRef = invoiceId ? db.collection("invoices").doc(invoiceId) : db.collection("invoices").doc();
    return db.runTransaction(async (tx) => {
-      const [counter, settings] = await Promise.all([tx.get(counterRef), tx.get(settingsRef)]);
+      const s = (await tx.get(settingsRef)).data();
+      // One counter per prefix, so UJI test invoices never consume INV numbers.
+      const counterRef = db.collection("counters").doc("invoice_" + s.numberPrefix);
+      const counter = await tx.get(counterRef);
+      if (!counter.exists) throw new Error("Penomoran " + s.numberPrefix + " belum dimulai");
       const seq = counter.data().next;
-      const s = settings.data();
       tx.set(invRef, {
          ...draft,
          number: FakturCalc.formatInvoiceNumber(s.numberPrefix, seq, s.numberPad),
+         numberPrefix: s.numberPrefix,
          numberSeq: seq,
          status: "issued",
          business: snapshotBusiness(s),
@@ -195,7 +200,7 @@ Urutan hitung sesuai FR-5.2. Pembulatan memakai `Math.round` di setiap langkah p
 
 ## 5. Rules Firestore (usulan, belum diterapkan)
 
-Rules tidak ada di repo dan saat ini semua pengguna yang login bisa menulis koleksi mana pun (spec `firestore-read-quota` D-4). Usulan di bawah hanya untuk koleksi faktur. **Menerapkan rules adalah tindakan produksi dan butuh persetujuan Sehan** (Task 0.3).
+Rules tidak ada di repo. Rules produksi dicek read-only lewat Firebase CLI pada 2026-11-05 dan isinya satu aturan: `match /{document=**} { allow read, write: if request.auth != null; }`. Fase 1 berjalan dengan rules itu (keputusan Q-3). Usulan di bawah hanya untuk koleksi faktur dan dijadwalkan di Task 3.5; untuk counter per prefix (§3.4), path `counters/invoices` di bawah dibaca sebagai `counters/invoice_$(prefix)` dengan prefix dari `request.resource.data.numberPrefix`. **Menerapkan rules adalah tindakan produksi dan butuh persetujuan Sehan.**
 
 ```
 function isSignedIn() { return request.auth != null; }
@@ -337,7 +342,7 @@ Mockup visual belum dibuat. Usulan: setelah spec disetujui, buat mockup 3 layar 
 | R-3 | CORS Cloudinary atau html2canvas gagal menggambar foto, sehingga gambar kosong | Uji di Task 1.10; foto gagal diganti kotak kosong (FR-8.8); opsi B sebagai cadangan |
 | R-4 | Canvas terlalu tinggi untuk faktur 50 item di HP | Uji 50 item di Chrome Android; turunkan skala atau pakai JPEG |
 | R-5 | `navigator.share` ditolak karena aktivasi pengguna kedaluwarsa | Alur dua langkah Siapkan → Bagikan (§6.4) |
-| R-6 | Uji manual menulis faktur ke database produksi | Pakai Firestore Emulator, atau prefix uji lalu batalkan, sesuai keputusan Q-4 |
+| R-6 | Uji manual menulis faktur ke database produksi (tidak ada staging, Q-4) | Prefix `UJI` dengan counter terpisah; faktur uji dibatalkan setelah uji; Fase 1 tidak menulis koleksi bisnis lain |
 | R-7 | Fase 2 dobel hitung bila penjualan yang sama sudah dicatat manual di menu Penjualan | Peringatan di dialog; `invoiceId` di `sales` untuk pelacakan; keputusan alur kerja tim (Q-5) |
 | R-8 | `txNumber` penjualan bisa bentrok (`app-runtime.js:4593-4597`), juga untuk penjualan dari faktur | Di luar spec ini; diusulkan sebagai perbaikan terpisah dengan counter yang sama polanya |
 | R-9 | Draf lokal di `localStorage` tertinggal setelah logout di perangkat bersama | `fakturCleanup()` menghapus draf lokal saat logout, sejalan dengan `clearOfflineCacheAndReload` (`app-runtime.js:670-680`) |

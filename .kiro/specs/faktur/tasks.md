@@ -1,26 +1,23 @@
 # Tasks: Faktur (Invoice) di ERP
 
-Status: **belum dimulai** (2026-11-04). Menunggu persetujuan spec dan jawaban pertanyaan di bagian akhir. Tidak ada task yang memakai Blaze atau Cloud Functions, dan tidak ada paket npm baru.
+Status: **siap dieksekusi** (2026-11-05). Q-1 sampai Q-9 dijawab sesuai rekomendasi atas arahan Sehan (bagian "Keputusan"). Butir ⚑ tetap dicek ke owner saat demo. Tidak ada task yang memakai Blaze atau Cloud Functions, dan tidak ada paket npm baru.
 
 Aturan verifikasi untuk setiap task kode:
 - `npm run build` lulus, dan output-nya dicatat.
 - Tes kalkulasi: `node --test scripts/faktur-calc.test.cjs` lulus (setelah Task 1.2 ada).
 - Cek manual di Chrome pada lebar 320, 360, 412, 768, 1024, dan 1440 px (tema terang saja; ERP belum punya tema gelap).
-- Tulisan ke Firestore saat uji mengikuti keputusan Q-4. Tanpa keputusan itu, tidak ada uji tulis ke produksi.
+- Uji dilakukan di database produksi (Q-4). Faktur uji selalu memakai prefix `UJI`, dan faktur `UJI` yang sudah terbit dibatalkan dengan alasan "Uji coba". Tidak ada uji yang menyentuh `sales`, `products`, atau `stock_movements` di Fase 1.
 
 ---
 
 ## Phase 0: Keputusan dan persiapan (tanpa kode fitur)
 
-- [ ] **Task 0.1**: Sehan menyetujui requirements, design, dan tasks ini, serta menjawab Q-1 sampai Q-4.
-  - Selesai bila: jawaban dicatat di bagian "Keputusan" dokumen ini.
+- [x] **Task 0.1**: Sehan menyetujui spec dan meminta Q-1 sampai Q-9 dijawab sesuai rekomendasi (2026-11-05). Jawaban ada di bagian "Keputusan".
 - [ ] **Task 0.2**: Cek ke owner butir ⚑ di requirements (pajak, diskon item, akses admin, faktur tanpa efek stok di Fase 1).
   - Selesai bila: setiap ⚑ punya jawaban "tetap" atau "ubah", dan requirements diperbarui.
-- [ ] **Task 0.3**: Siapkan rules faktur (design §5). Cek dulu bahwa semua owner/admin punya dokumen `users/{uid}` dengan baca terbatas `limit(5)`, atas izin Sehan. Penerapan rules ke produksi dilakukan Sehan.
-  - Selesai bila: rules diuji di Emulator (atau Rules Playground) untuk kasus: admin baca, staf lain ditolak, counter hanya +1, nomor tidak bisa diubah, faktur terbit tidak bisa dihapus.
-- [ ] **Task 0.4**: Tentukan nomor awal dan buat `counters/invoices` serta `invoice_settings/default` (skrip setup dengan mode `--dry`, dijalankan Sehan).
-  - Selesai bila: dua dokumen ada; `next` lebih besar dari nomor terakhir aplikasi lama.
-- [ ] **Task 0.5**: Mockup 3 layar (daftar, editor, pratinjau) di 360 px, disetujui owner.
+- [x] **Task 0.3**: Rules produksi dicek read-only lewat Firebase CLI (2026-11-05): satu aturan `match /{document=**} { allow read, write: if request.auth != null; }`. Faktur Fase 1 jalan dengan rules ini tanpa perubahan. Rules khusus faktur (design §5) ditunda ke Task 3.5 (Q-3).
+- [x] **Task 0.4**: Nomor awal ditetapkan: faktur ERP pertama `INV0101` (Q-2). Dokumen counter dan pengaturan **tidak** dibuat lewat skrip admin, tetapi oleh form "Mulai penomoran" di Task 1.4, memakai login owner/admin di ERP. Nama koleksi `counters`, `invoices`, dan `invoice_settings` dicek tidak dipakai di runtime ERP maupun di `inzta-investor-portal/src`.
+- [ ] **Task 0.5** (opsional): Mockup 3 layar (daftar, editor, pratinjau) di 360 px. Dilewati bila Sehan langsung membangun UI mengikuti design §9.
 
 ---
 
@@ -37,7 +34,8 @@ Aturan verifikasi untuk setiap task kode:
 
 ### Pengaturan dan penomoran
 - [ ] **Task 1.4**: Layar Pengaturan faktur (design §9.5): logo lewat Cloudinary, nama, alamat, rekening (tambah/hapus), syarat, jatuh tempo default, prefix, pajak default. Nomor berikutnya tampil baca saja.
-  - Selesai bila: perubahan tersimpan di `invoice_settings/default` dan tampil di pratinjau draf.
+  - Form "Mulai penomoran" muncul bila counter untuk prefix aktif belum ada: isi prefix dan nomor pertama, lalu buat `counters/invoice_{PREFIX}` dengan transaksi yang gagal bila dokumen sudah ada (tidak pernah menimpa counter).
+  - Selesai bila: perubahan tersimpan di `invoice_settings/default` dan tampil di pratinjau draf; counter `invoice_UJI` (mulai 1) dibuat untuk uji, dan `invoice_INV` (mulai 101) dibuat saat go-live.
 - [ ] **Task 1.5**: `issueInvoice()` dengan `runTransaction` (design §4.1), snapshot `business`, dan audit `issuedAt/issuedBy`. Pesan jelas saat offline.
   - Selesai bila: uji dua tab/perangkat menerbitkan bersamaan menghasilkan dua nomor berbeda berurutan (AC-2); offline menampilkan pesan dan isian tidak hilang.
 
@@ -70,7 +68,7 @@ Aturan verifikasi untuk setiap task kode:
   - regresi: Dashboard, Penjualan, Laporan, dan stok tidak berubah sebelum dan sesudah membuat faktur uji (AC-9); halaman lain tetap jalan; logout menghapus draf lokal;
   - cek visual di 6 lebar layar;
   - catat pemakaian read di Firebase Console → Usage sebelum dan sesudah, seperti spec `firestore-read-quota` Task 5.2.
-- [ ] **Task 1.15**: Demo ke owner di HP-nya, lalu catat masukan sebagai task baru.
+- [ ] **Task 1.15**: Go-live: batalkan semua faktur `UJI` terbit dengan alasan "Uji coba", ganti prefix ke `INV`, jalankan "Mulai penomoran" dengan nomor pertama 101. Demo ke owner di HP-nya, cek butir ⚑, lalu catat masukan sebagai task baru.
 
 ---
 
@@ -93,14 +91,15 @@ Aturan verifikasi untuk setiap task kode:
 - [ ] **Task 3.2**: Ekspor Excel daftar faktur dan piutang dengan ExcelJS yang sudah dimuat.
 - [ ] **Task 3.3** (opsional, Q-9): Link publik baca-saja (`invoice_public/{token}`, design §6.4), hanya bila owner memintanya dan rules disetujui.
 - [ ] **Task 3.4**: Verifikasi Fase 3: build, angka laporan sama dengan jumlah manual dari daftar faktur, ekspor terbuka di Excel.
+- [ ] **Task 3.5**: Rules khusus faktur (design §5) ditambahkan ke rules produksi yang sekarang (aturan `request.auth != null` tetap untuk koleksi lain). Sebelumnya cek bahwa semua owner/admin punya dokumen `users/{uid}`. Deploy rules dilakukan Sehan dengan persetujuan terpisah.
 
 ---
 
 ## Ringkasan jumlah tugas
-- Phase 0: 5 task (keputusan dan persiapan)
+- Phase 0: 5 task (3 selesai, 1 menunggu demo owner, 1 opsional)
 - Phase 1: 15 task (MVP)
 - Phase 2: 6 task
-- Phase 3: 4 task
+- Phase 3: 5 task
 
 ## Pertanyaan untuk Sehan sebelum implementasi
 - **Q-1**: Pembuatan gambar: opsi A (`html2canvas` dari CDN, dimuat saat dibutuhkan) atau opsi B (Canvas 2D tanpa library)? Usulan: A, dengan keputusan akhir setelah spike Task 1.10.
@@ -114,4 +113,18 @@ Aturan verifikasi untuk setiap task kode:
 - **Q-9**: Owner butuh link faktur yang bisa dibuka pembeli di browser, atau gambar sudah cukup?
 
 ## Keputusan
-(diisi setelah Task 0.1)
+Dijawab 2026-11-05 sesuai rekomendasi, atas arahan Sehan. Butir ⚑ di requirements tetap dicek ke owner saat demo (Task 1.15).
+
+| Q | Keputusan |
+|---|---|
+| Q-1 | Opsi A: `html2canvas@1.4.1` dari cdnjs, dimuat saat tombol Bagikan pertama kali ditekan. Bila spike Task 1.10 gagal (CORS foto atau batas canvas), pindah ke opsi B (Canvas 2D). |
+| Q-2 | Prefix `INV`, faktur ERP pertama `INV0101`. Celah dari nomor terakhir yang terlihat di aplikasi lama (`INV0009`, 26 Okt 2026) mencegah bentrok bila owner masih membuat beberapa faktur di aplikasi lama. Owner berhenti memakai aplikasi lama setelah demo Task 1.15. Bila owner melaporkan nomor lama sudah ≥ 100, nomor pertama dinaikkan sebelum go-live. |
+| Q-3 | Fase 1 memakai rules produksi yang sekarang (`request.auth != null`, dicek 2026-11-05). Akses owner/admin dijaga di UI (`navigateTo` dan menu). Rules khusus faktur menyusul di Task 3.5 dan di-deploy Sehan. |
+| Q-4 | Tanpa database staging: uji di produksi dengan prefix `UJI` dan counter `invoice_UJI` yang terpisah, sehingga nomor `INV` tidak terpakai oleh uji. Faktur `UJI` terbit dibatalkan setelah uji; draf `UJI` dihapus. Fase 1 tidak menulis `sales`, `products`, atau `stock_movements`, jadi uji tidak mengubah angka bisnis. Uji Fase 2 (catat sebagai penjualan) butuh persetujuan terpisah karena mengubah stok. |
+| Q-5 | Ya. Setelah Fase 2, penjualan reseller yang punya faktur dicatat lewat "Catat sebagai penjualan", bukan manual. Tanggal penjualan default = tanggal faktur, bisa diubah di dialog. |
+| Q-6 | Owner dan admin sama-sama boleh membuat, menerbitkan, melunasi, dan membatalkan faktur, seperti menu Reseller. ⚑ |
+| Q-7 | Spec tetap di-commit dengan `git add -f`, supaya bisa direview lewat PR. `.gitignore` tidak diubah. |
+| Q-8 | Tidak ada jalur "faktur dari penjualan yang sudah tercatat" di Fase 1–2. |
+| Q-9 | Tidak ada link publik. Gambar PNG dan PDF sudah cukup; Task 3.3 tidak dikerjakan kecuali owner memintanya. |
+
+Konsekuensi untuk design: counter dibuat per prefix (`counters/invoice_{PREFIX}`), bukan satu `counters/invoices` (design §3.4).
