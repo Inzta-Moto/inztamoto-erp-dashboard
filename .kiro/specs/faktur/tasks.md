@@ -80,7 +80,7 @@ Aturan verifikasi untuk setiap task kode:
 - [ ] **Task 2.3**: Dialog **Catat sebagai penjualan**: tanggal, channel (otomatis Reseller bila pelanggan reseller), peringatan stok, lalu satu `batch` untuk `sales` + `products` + `stock_movements` + `invoices` (design §8). Tambah `sales_monthly` bila spec `firestore-read-quota` Fase 4 sudah jalan.
   - Selesai bila: AC-10 lulus; tombol tidak bisa dipakai dua kali; item manual dilewati; faktur yang sudah dicatat tidak bisa diubah item atau dibatalkan (FR-7.4).
 - [ ] **Task 2.4**: Tampilkan tautan faktur di baris Penjualan yang punya `invoiceNumber`.
-- [ ] **Task 2.5** (opsional, ⚑): `defaultDiscountPercent` di `resellers` dan isian otomatis diskon saat reseller dipilih.
+- [x] **Task 2.5** (diganti feedback owner 2026-11-05): pilihan "Diskon semua barang" di editor: Tanpa diskon, Reseller 15%, Reseller 20%, atau Isi sendiri (persen). Disimpan sebagai `bulkDiscount` di faktur, diterapkan ke barang katalog lewat `FakturCalc.applyBulkDiscount`. Persen tetap per reseller tidak dibuat.
 - [ ] **Task 2.6**: Verifikasi Fase 2: build, tes, regresi angka Dashboard/Laporan untuk penjualan dari faktur, cek 6 lebar layar.
 
 ---
@@ -136,3 +136,16 @@ Konsekuensi untuk design: counter dibuat per prefix (`counters/invoice_{PREFIX}`
 - Tampilan dicek di 320, 360, dan 1280 px tanpa scroll horizontal. ERP asli dijalankan di localhost dengan env checkout utama: urutan script benar, tidak ada error console, menu Faktur tersembunyi sebelum login.
 - Review independen (agent code-reviewer) menemukan 3 masalah sedang dan 4 kecil; semuanya diperbaiki dan diuji ulang (salinan periode basi, XSS lewat toast, render ulang saat mengetik, edit selama menyimpan, kembali saat menyimpan, total bulan ini saat lebih dari 50 faktur, pembersihan cetak di Android).
 - Belum diuji: login asli ke database produksi, tombol bagikan dan PDF di HP Android, faktur 50 item di canvas Android, dan dua perangkat menerbitkan bersamaan (keamanan nomor bergantung pada transaksi Firestore; halaman uji tidak mensimulasikan retry transaksi). Semua masuk Task 1.14 dan 1.15.
+
+## Feedback owner dan tim (grup Inzta Dev, 2026-11-05)
+Jawaban atas bagian C laporan PDF. Nama orang tidak ditulis di sini.
+
+| Butir | Jawaban | Tindak lanjut |
+|---|---|---|
+| Nomor faktur terakhir di aplikasi lama | Belum melewati 100 | Tetap `INV0101`. Faktur `INV0101` sudah dibuat dari ERP pada 2026-11-05 (contoh PDF dikirim di grup) |
+| Aplikasi lama | Sudah tidak digunakan lagi | Go-live dianggap jalan; uji `UJI` tidak wajib lagi |
+| Pajak | Pilihan pajak tetap ada, tetapi harga produk sudah termasuk, tidak memakai PPN | Tidak ada perubahan: bawaan "Tidak ada" |
+| Diskon | Reseller dibuat pilihan 15% dan 20%, pelanggan lain diisi sendiri | Dikerjakan: pilihan "Diskon semua barang" (Task 2.5) |
+| Akses | Owner dan Admin, setuju | Tidak ada perubahan |
+| Bagikan | Lewat gambar dan PDF | Tidak ada perubahan |
+| Judul dokumen | "Faktur" atau "Invoice" belum diputuskan | Dikerjakan: pilihan "Judul dokumen" (FAKTUR/INVOICE) di Pengaturan, bawaan FAKTUR; faktur terbit memakai judul saat terbit |

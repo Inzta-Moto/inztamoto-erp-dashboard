@@ -557,6 +557,11 @@ window.fkLoadMore = function () {
       });
 };
 
+// The owner has not chosen between "Faktur" and "Invoice" yet (2026-11-05), so the heading is a setting.
+function fkDocTitle(t) {
+   return t === "INVOICE" ? "INVOICE" : "FAKTUR";
+}
+
 function fkBusinessFromSettings(s) {
    s = s || {};
    return {
@@ -565,6 +570,7 @@ function fkBusinessFromSettings(s) {
       logoUrl: s.logoUrl || "",
       bankAccounts: Array.isArray(s.bankAccounts) ? s.bankAccounts.filter(function (b) { return b && (b.bank || b.number); }) : [],
       terms: s.terms || "",
+      title: fkDocTitle(s.documentTitle),
    };
 }
 
@@ -583,6 +589,7 @@ function fkNewDraft() {
       otherFee: { label: "", amount: 0 },
       paidAmount: 0,
       notes: "",
+      bulkDiscount: { preset: "none", value: 0 },
    };
 }
 
@@ -611,6 +618,7 @@ function fkDraftFromInvoice(inv) {
       otherFee: Object.assign({ label: "", amount: 0 }, inv.otherFee || {}),
       paidAmount: inv.paidAmount || 0,
       notes: inv.notes || "",
+      bulkDiscount: fkNormalizeBulk(inv.bulkDiscount),
    };
 }
 
@@ -817,6 +825,7 @@ function fkRenderEditorBody() {
    var items =
       '<section class="card fk-section"><div class="fk-section-head"><h3>Item <span class="fk-muted" id="fkItemCount">(' + d.items.length + ")</span></h3>" +
       '<button class="btn btn-outline btn-sm" onclick="fkOpenManualItem()"><i class="fas fa-pen"></i>Item manual</button></div>' +
+      '<div class="fk-section-body fk-bulk" id="fkBulk"></div>' +
       '<div id="fkItems"></div>' +
       '<div class="fk-section-body"><button class="btn btn-primary btn-full" onclick="fkOpenPicker()"><i class="fas fa-plus"></i>Tambah dari katalog</button></div></section>';
 
@@ -851,6 +860,7 @@ function fkRenderEditorBody() {
       '<textarea id="fkNotes" class="form-input" rows="3" oninput="fkSetField(\'notes\', this.value)" placeholder="Opsional, tercetak di faktur">' + fkEsc(d.notes) + "</textarea></div></section>";
 
    body.innerHTML = '<div class="fk-form">' + customer + dates + items + summary + payment + notes + "</div>" + fkAuditHtml();
+   fkRenderBulk();
    fkRenderItems();
    fkRefreshTotals();
    fkRenderBottomBar();
@@ -876,6 +886,66 @@ function fkMoneyText(n) {
    var v = FakturCalc.toMoney(n);
    return v ? v.toLocaleString("id-ID") : "";
 }
+
+// Owner decision 2026-11-05: resellers get 15% or 20% on every catalog item; other customers get a typed percent.
+var FK_BULK_PRESETS = [
+   { value: "none", label: "Tanpa diskon" },
+   { value: "15", label: "Reseller 15%" },
+   { value: "20", label: "Reseller 20%" },
+   { value: "custom", label: "Isi sendiri" },
+];
+
+function fkNormalizeBulk(b) {
+   var preset = b && ["none", "15", "20", "custom"].indexOf(b.preset) !== -1 ? b.preset : "none";
+   var value = preset === "15" ? 15 : preset === "20" ? 20 : preset === "custom" ? FakturCalc.toPercent(b.value) : 0;
+   return { preset: preset, value: value };
+}
+
+function fkBulkPercent(d) {
+   return fkNormalizeBulk(d.bulkDiscount).value;
+}
+
+function fkRenderBulk() {
+   var el = document.getElementById("fkBulk");
+   if (!el || !fk.editor) return;
+   var b = fkNormalizeBulk(fk.editor.draft.bulkDiscount);
+   var chips = FK_BULK_PRESETS.map(function (p) {
+      return '<button type="button" class="fk-chip' + (b.preset === p.value ? " active" : "") + '" onclick="fkSetBulk(\'' + p.value + "')\">" + p.label + "</button>";
+   }).join("");
+   el.innerHTML =
+      '<div class="fk-bulk-label">Diskon semua barang</div><div class="fk-bulk-chips">' + chips + "</div>" +
+      (b.preset === "custom"
+         ? '<div class="fk-inline fk-bulk-custom"><input id="fkBulkValue" class="form-input fk-short" inputmode="decimal" value="' + (b.value ? String(b.value).replace(".", ",") : "") +
+           '" placeholder="0" oninput="fkSetBulkValue(this.value)" aria-label="Persen diskon"><span>% untuk setiap barang dari katalog</span></div>'
+         : "") +
+      '<p class="fk-hint">Berlaku untuk barang dari katalog, termasuk yang ditambah setelah ini. Diskon satu barang tetap bisa diubah lewat Ubah item.</p>';
+}
+
+function fkApplyBulk() {
+   var d = fk.editor.draft;
+   d.items = FakturCalc.applyBulkDiscount(d.items, fkBulkPercent(d));
+   fkMarkDirty();
+   fkRenderItems();
+   fkRefreshTotals();
+}
+
+window.fkSetBulk = function (preset) {
+   var d = fk.editor.draft;
+   var cur = fkNormalizeBulk(d.bulkDiscount);
+   d.bulkDiscount = { preset: preset, value: preset === "custom" ? cur.value : 0 };
+   fkRenderBulk();
+   fkApplyBulk();
+   if (preset === "custom") {
+      var input = document.getElementById("fkBulkValue");
+      if (input) input.focus();
+   }
+};
+
+// Typing only refreshes items and totals, so the percent box keeps focus.
+window.fkSetBulkValue = function (value) {
+   fk.editor.draft.bulkDiscount = { preset: "custom", value: FakturCalc.toPercent(value) };
+   fkApplyBulk();
+};
 
 function fkRenderItems() {
    var wrap = document.getElementById("fkItems");
@@ -1158,7 +1228,7 @@ window.fkAddProduct = function (productId) {
          qty: 1,
          catalogPrice: FakturCalc.toMoney(p.sellingPrice),
          unitPrice: FakturCalc.toMoney(p.sellingPrice),
-         discount: { type: "none", value: 0 },
+         discount: fkBulkPercent(d) > 0 ? { type: "percent", value: fkBulkPercent(d) } : { type: "none", value: 0 },
       });
    }
    fkMarkDirty();
@@ -1380,6 +1450,7 @@ function fkBuildDoc(status) {
       paidAmount: c.paidAmount,
       balanceDue: c.balanceDue,
       notes: String(d.notes || "").trim(),
+      bulkDiscount: fkNormalizeBulk(d.bulkDiscount),
       searchText: [name, cust.city, items.map(function (i) { return i.name; }).join(" ")].join(" ").toLowerCase(),
       schemaVersion: 1,
    };
@@ -1729,7 +1800,7 @@ function fkInvoiceDocHtml(inv) {
       '<div class="inv-doc-head"><div class="inv-doc-brand">' +
       (b.logoUrl ? '<img class="inv-doc-logo" src="' + fkEsc(b.logoUrl) + '" alt="" crossorigin="anonymous" width="64" height="64">' : "") +
       '<div><div class="inv-doc-bname">' + fkEsc(b.name || "Nama usaha") + "</div>" + (b.address ? '<div class="inv-doc-addr">' + fkEsc(b.address) + "</div>" : "") + "</div></div>" +
-      '<div class="inv-doc-title"><div class="inv-doc-h">FAKTUR</div><div class="inv-doc-no">' + (inv.number ? "#" + fkEsc(inv.number) : "DRAF") + "</div>" +
+      '<div class="inv-doc-title"><div class="inv-doc-h">' + fkDocTitle(b.title) + '</div><div class="inv-doc-no">' + (inv.number ? "#" + fkEsc(inv.number) : "DRAF") + "</div>" +
       "<div>Tanggal: " + fkFmtDate(inv.issueDate) + "</div><div>Jatuh tempo: " + fkFmtDate(inv.dueDate) + "</div></div></div>" +
       '<div class="inv-doc-bill"><div class="inv-doc-label">Tagih kepada</div><div class="inv-doc-cname">' + fkEsc(c.name || "-") +
       (c.type === "reseller" ? ' <span class="inv-doc-tag">Reseller</span>' : "") + "</div>" +
@@ -1928,7 +1999,7 @@ window.fkSendWhatsApp = function () {
    var lines = [
       "Halo " + (inv.customer.name || "") + ",",
       "",
-      "Berikut faktur " + (inv.number || "") + (b.name ? " dari " + b.name : "") + ".",
+      "Berikut " + fkDocTitle(b.title).toLowerCase() + " " + (inv.number || "") + (b.name ? " dari " + b.name : "") + ".",
       "Tanggal: " + fkFmtDate(inv.issueDate),
       "Total: " + fmtRp(inv.total),
    ];
@@ -1964,6 +2035,7 @@ function fkSettingsFormFromDoc(s) {
    s = s || {};
    return {
       businessName: s.businessName || "INZTAMOTO",
+      documentTitle: fkDocTitle(s.documentTitle),
       address: s.address || "",
       logoUrl: s.logoUrl || "",
       bankAccounts: Array.isArray(s.bankAccounts) && s.bankAccounts.length ? s.bankAccounts.map(function (b) { return Object.assign({}, b); }) : [{ bank: "", number: "", holder: "" }],
@@ -2018,6 +2090,9 @@ function fkRenderSettings() {
       (f.logoUrl ? ' <button type="button" class="btn btn-outline btn-sm" onclick="fkRemoveLogo()">Hapus</button>' : "") + "</div></div>" +
       '<div class="form-group"><label for="fkSetName">Nama usaha</label><input id="fkSetName" class="form-input" value="' + fkEsc(f.businessName) + '" oninput="fkSetSetting(\'businessName\', this.value)"></div>' +
       '<div class="form-group"><label for="fkSetAddr">Alamat singkat</label><input id="fkSetAddr" class="form-input" value="' + fkEsc(f.address) + '" oninput="fkSetSetting(\'address\', this.value)" placeholder="Mis. kota atau alamat toko"></div>' +
+      '<div class="form-group"><label for="fkSetTitle">Judul dokumen</label><select id="fkSetTitle" class="form-input" onchange="fkSetSetting(\x27documentTitle\x27, this.value)">' +
+      ["FAKTUR", "INVOICE"].map(function (t) { return '<option value="' + t + '"' + (f.documentTitle === t ? " selected" : "") + ">" + t + "</option>"; }).join("") +
+      '</select><p class="fk-hint">Tulisan besar di pojok kanan atas dokumen. Faktur yang sudah terbit tidak ikut berubah.</p></div>' +
       "</div></section>" +
       '<section class="card fk-section"><div class="fk-section-head"><h3>Rekening pembayaran</h3><button class="btn btn-outline btn-sm" onclick="fkAddBank()"><i class="fas fa-plus"></i>Tambah</button></div>' +
       '<div class="fk-section-body">' + banks + "</div></section>" +
@@ -2175,6 +2250,7 @@ window.fkSaveSettings = async function () {
       defaultDueDays: Math.min(365, Math.max(0, FakturCalc.toInt(f.defaultDueDays))),
       numberPrefix: f.numberPrefix,
       numberPad: 4,
+      documentTitle: fkDocTitle(f.documentTitle),
       defaultTax: { type: tax.type || "none", value: tax.type === "none" ? 0 : tax.value || 0, label: tax.label || "PPN" },
       updatedAt: fkNow(),
       updatedBy: fkActor(),
