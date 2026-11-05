@@ -1294,6 +1294,11 @@ select.form-input {
 .fk-hint-error { color: var(--danger); font-weight: 600 }
 .fk-link { color: #B45309; font-weight: 700; text-decoration: underline; font-size: 12px }
 .fk-danger-text { color: var(--danger) }
+.fk-bulk { padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light) }
+.fk-bulk-label { font-size: 13px; font-weight: 600; margin-bottom: 8px }
+.fk-bulk-chips { display: flex; flex-wrap: wrap; gap: 6px }
+.fk-bulk-custom { margin-top: 10px; font-size: 13px; color: var(--text-muted) }
+.fk-bulk .fk-hint { margin-top: 8px }
 .fk-empty-items { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--text-muted); font-size: 13px }
 .fk-item { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border-light) }
 .fk-item-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; padding: 4px 0; min-height: 52px }

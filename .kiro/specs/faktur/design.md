@@ -82,6 +82,7 @@ Konvensi mengikuti koleksi yang sudah ada: tanggal `YYYY-MM-DD` string, timestam
 | `lastSharedAt` | string | terakhir dibagikan |
 | `saleIds`, `salesRecordedAt`, `salesRecordedBy` | array, string, map | Fase 2 |
 | `createdAt/By`, `updatedAt/By`, `issuedAt/By`, `cancelledAt/By`, `cancelReason` | | audit, pelaku `{ uid, name }` |
+| `bulkDiscount` | map | `{ preset, value }`, preset salah satu dari `none`, `15`, `20`, `custom`: diskon semua barang katalog (feedback owner 2026-11-05) |
 | `schemaVersion` | int | 1 |
 
 ### 3.2 Item (`items[]`)
@@ -101,7 +102,7 @@ Konvensi mengikuti koleksi yang sudah ada: tanggal `YYYY-MM-DD` string, timestam
 Ukuran: 50 item × sekitar 400 byte ≈ 20 KB per dokumen, jauh di bawah batas 1 MiB.
 
 ### 3.3 `invoice_settings/default`
-`{ businessName, address, logoUrl, bankAccounts: [{ bank, number, holder }], terms, defaultDueDays: 7, numberPrefix: "INV", numberPad: 4, defaultTax: { type, value, label }, updatedAt, updatedBy }`
+`{ businessName, documentTitle: "FAKTUR" | "INVOICE", address, logoUrl, bankAccounts: [{ bank, number, holder }], terms, defaultDueDays: 7, numberPrefix: "INV", numberPad: 4, defaultTax: { type, value, label }, updatedAt, updatedBy }`
 
 ### 3.4 `counters/invoice_{PREFIX}`
 `{ prefix: "INV", next: 101, lastInvoiceId, createdAt, createdBy, updatedAt }`. `next` adalah nomor yang akan dipakai faktur terbit berikutnya dengan prefix itu. Satu dokumen per prefix (keputusan Q-4, 2026-11-05): uji di produksi memakai `invoice_UJI`, faktur asli memakai `invoice_INV` yang mulai dari 101 (Q-2), sehingga uji tidak pernah memakan nomor `INV`.

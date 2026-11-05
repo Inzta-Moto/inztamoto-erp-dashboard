@@ -162,6 +162,26 @@ test("normalizeWaPhone converts Indonesian formats", () => {
    assert.equal(C.normalizeWaPhone(""), "");
 });
 
+test("applyBulkDiscount sets a percent discount on catalog items only", () => {
+   const items = [
+      { productId: "p1", unitPrice: 300000, qty: 2, discount: { type: "none", value: 0 } },
+      { productId: "p2", unitPrice: 150000, qty: 1, discount: { type: "amount", value: 5000 } },
+      { productId: "", name: "Jasa sablon", unitPrice: 25000, qty: 1, discount: { type: "none", value: 0 } },
+   ];
+   const r15 = C.applyBulkDiscount(items, 15);
+   assert.deepEqual(r15.map((i) => i.discount), [
+      { type: "percent", value: 15 },
+      { type: "percent", value: 15 },
+      { type: "none", value: 0 },
+   ]);
+   assert.equal(items[0].discount.type, "none", "input is not mutated");
+   const total = C.computeInvoice({ status: "issued", items: C.applyBulkDiscount(items, 20), paidAmount: 0 }).subtotal;
+   assert.equal(total, 240000 * 2 + 120000 + 25000);
+   const cleared = C.applyBulkDiscount(r15, 0);
+   assert.deepEqual(cleared.map((i) => i.discount.type), ["none", "none", "none"]);
+   assert.equal(C.applyBulkDiscount(items, 150)[0].discount.value, 100, "percent is clamped");
+});
+
 test("smallImageUrl swaps the Cloudinary width transform", () => {
    assert.equal(
       C.smallImageUrl("https://res.cloudinary.com/x/image/upload/q_auto,f_auto,w_800/inztamoto/products/a"),

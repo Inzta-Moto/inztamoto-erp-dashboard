@@ -95,6 +95,16 @@ var FakturCalc = (function () {
       };
    }
 
+   // One discount for every catalog item (reseller 15% / 20% or a typed percent); manual items such as services keep
+   // their own. 0 removes the discount from catalog items.
+   function applyBulkDiscount(items, percent) {
+      var p = toPercent(percent);
+      return (items || []).map(function (it) {
+         if (!it.productId) return Object.assign({}, it);
+         return Object.assign({}, it, { discount: p > 0 ? { type: "percent", value: p } : { type: "none", value: 0 } });
+      });
+   }
+
    function formatInvoiceNumber(prefix, seq, pad) {
       return String(prefix || "") + String(seq).padStart(pad || 4, "0");
    }
@@ -158,6 +168,7 @@ var FakturCalc = (function () {
       unitDiscount: unitDiscount,
       computeLine: computeLine,
       computeInvoice: computeInvoice,
+      applyBulkDiscount: applyBulkDiscount,
       formatInvoiceNumber: formatInvoiceNumber,
       daysOverdue: daysOverdue,
       addDays: addDays,
