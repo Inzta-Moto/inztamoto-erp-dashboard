@@ -1269,7 +1269,10 @@ select.form-input {
 .fk-badge-partial { background: #E8F0FE; color: #1A56C9 }
 .fk-badge-overdue { background: #FCE8E6; color: #C5221F }
 .fk-badge-paid { background: #E6F4EA; color: #137333 }
-.fk-badge-cancelled { background: #F1F3F4; color: #5F6368; text-decoration: line-through }
+.fk-badge-cancelled { background: #C5221F; color: #fff; text-decoration: line-through; text-decoration-color: #fff }
+.fk-row-cancelled .fk-badge ~ small { color: #C5221F }
+/* Amount headers inherit text-align: left from .data-table th, so the cells follow it to stay under their headers */
+.fk-table .fk-num { text-align: left }
 
 .fk-editor { max-width: 860px; margin: 0 auto }
 .fk-editor-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px }
