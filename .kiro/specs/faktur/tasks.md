@@ -149,3 +149,11 @@ Jawaban atas bagian C laporan PDF. Nama orang tidak ditulis di sini.
 | Akses | Owner dan Admin, setuju | Tidak ada perubahan |
 | Bagikan | Lewat gambar dan PDF | Tidak ada perubahan |
 | Judul dokumen | "Faktur" atau "Invoice" belum diputuskan | Dikerjakan: pilihan "Judul dokumen" (FAKTUR/INVOICE) di Pengaturan, bawaan FAKTUR; faktur terbit memakai judul saat terbit |
+
+## Feedback daftar faktur (grup Inzta Dev, 2026-11-06)
+
+| Butir | Tindak lanjut |
+|---|---|
+| Kolom Total, Sisa, dan Jatuh tempo tidak sejajar dengan judulnya | Angka di tabel daftar rata kiri, mengikuti judul kolom (`.fk-table .fk-num`) |
+| Status Batal harus jelas terbaca sebagai salah/batal | Badge Batal merah penuh dengan teks dicoret; catatan alasan berwarna merah |
+| Faktur batal bisa dihapus supaya tidak muncul lagi, tetapi nomornya tidak dipakai ulang | Tombol "Hapus dari daftar" (ikon tempat sampah) di pratinjau faktur batal. Dokumen tidak dihapus: field `hidden: true`, `hiddenAt`, dan `hiddenBy` disimpan, lalu daftar menyaring `hidden`. Counter tidak diubah, jadi nomor tetap hangus |

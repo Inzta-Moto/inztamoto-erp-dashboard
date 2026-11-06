@@ -293,6 +293,7 @@ function fkSearchText(inv) {
 function fkFilteredList() {
    var q = fk.search.trim().toLowerCase();
    return fkAllInvoices()
+      .filter(function (inv) { return !inv.hidden; })
       .filter(fkMatchesFilter)
       .filter(fkMatchesPeriod)
       .filter(function (inv) { return !q || fkSearchText(inv).indexOf(q) !== -1; })
@@ -441,7 +442,7 @@ function fkRenderListBody() {
       var s = fkStatusOf(inv);
       var c = inv.customer || {};
       return (
-         '<tr class="fk-row" onclick="fkOpenInvoice(\'' + inv.id + "')\">" +
+         '<tr class="fk-row' + (s === "cancelled" ? " fk-row-cancelled" : "") + '" onclick="fkOpenInvoice(\'' + inv.id + "')\">" +
          "<td><strong>" + (inv.number ? fkEsc(inv.number) : '<span class="fk-muted">DRAF</span>') + "</strong></td>" +
          "<td>" + fkFmtDate(inv.issueDate) + "</td>" +
          "<td>" + fkEsc(c.name || "-") + (c.type === "reseller" ? ' <span class="fk-tag">Reseller</span>' : "") +
@@ -1363,7 +1364,9 @@ function fkRenderBottomBar() {
             (c.balanceDue > 0 && !ed.dirty ? '<button class="btn btn-outline" onclick="fkMarkPaid()"' + busy + '><i class="fas fa-check"></i>Tandai lunas</button>' : "");
          if (ed.dirty) html = '<span class="fk-muted fk-bar-note">Simpan perubahan dulu sebelum membagikan.</span><button class="btn btn-primary" onclick="fkSaveIssued()"' + busy + ">Simpan</button>";
       } else if (status === "cancelled") {
-         html = '<button class="btn btn-outline" onclick="fkPrint()"><i class="fas fa-file-pdf"></i>PDF</button>';
+         html =
+            '<button class="btn btn-outline fk-icon-btn" onclick="fkConfirmHideCancelled()"' + busy + ' aria-label="Hapus dari daftar" title="Hapus dari daftar"><i class="fas fa-trash"></i></button>' +
+            '<button class="btn btn-outline" onclick="fkPrint()"><i class="fas fa-file-pdf"></i>PDF</button>';
       } else {
          html = '<span class="fk-muted fk-bar-note">Terbitkan dulu untuk mendapat nomor dan membagikan.</span>' +
             '<button class="btn btn-primary" onclick="fkIssue()"' + busy + '><i class="fas fa-paper-plane"></i>' + (fk.busy ? "Menerbitkan..." : "Terbitkan") + "</button>";
@@ -1702,6 +1705,44 @@ window.fkCancelInvoice = async function () {
    } catch (err) {
       fk.busy = false;
       fkToast(fkErrorMessage(err, "Gagal membatalkan"), "error");
+      fkRenderBottomBar();
+   }
+};
+
+// Issued numbers are never reused, so a cancelled invoice is hidden rather than deleted: the document keeps the
+// number consumed for the audit trail and the counter is never touched.
+window.fkConfirmHideCancelled = function () {
+   var ed = fk.editor;
+   fkOpenSheet(
+      "Hapus " + (ed.base && ed.base.number ? ed.base.number : "faktur") + " dari daftar?",
+      '<p class="fk-sheet-text">Faktur batal ini tidak akan muncul lagi di daftar. Nomornya tetap hangus dan tidak dipakai ulang untuk faktur baru.</p>',
+      '<button class="btn btn-outline" onclick="fkCloseSheet()">Kembali</button><button class="btn btn-danger" onclick="fkHideCancelled()">Hapus dari daftar</button>',
+   );
+};
+
+window.fkHideCancelled = async function () {
+   var ed = fk.editor;
+   var ref = db.collection("invoices").doc(ed.id);
+   fkCloseSheet();
+   fkSetBusy(true);
+   try {
+      var patch = { hidden: true, hiddenAt: fkNow(), hiddenBy: fkActor(), updatedAt: fkNow(), updatedBy: fkActor() };
+      await db.runTransaction(async function (tx) {
+         var current = fkCheckVersion(await tx.get(ref), ed.base);
+         if (current.status !== "cancelled") throw new Error("Hanya faktur batal yang bisa dihapus dari daftar.");
+         tx.update(ref, patch);
+      });
+      fkClearLocal(ed.id);
+      if (fk.extra[ed.id]) fk.extra[ed.id] = Object.assign({}, fk.extra[ed.id], patch);
+      var number = ed.base && ed.base.number;
+      fk.busy = false;
+      fk.editor = null;
+      fk.view = "list";
+      fkToast("Faktur " + (number || "") + " dihapus dari daftar", "success");
+      renderFaktur(true);
+   } catch (err) {
+      fk.busy = false;
+      fkToast(fkErrorMessage(err, "Gagal menghapus dari daftar"), "error");
       fkRenderBottomBar();
    }
 };
