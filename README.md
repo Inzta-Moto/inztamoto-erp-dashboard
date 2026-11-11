@@ -78,6 +78,30 @@ Untuk keperluan testing tanpa Firebase:
 
 ---
 
+## Staging
+
+Ada dua proyek Firebase. Kode yang sama, database berbeda.
+
+| Lingkungan | Proyek Firebase | Vercel | Data |
+|---|---|---|---|
+| Produksi | `database-inzta` | Production (`main`, dashboard.inzta.id) | data asli |
+| Staging | `inzta-erp-staging` | Preview (semua branch selain `main`, alamat tetap dari branch `staging`) | kosong, hanya data uji |
+
+- Variabel `NEXT_PUBLIC_FIREBASE_*` di Vercel: target Production berisi nilai `database-inzta`, target Preview berisi nilai `inzta-erp-staging`. Deploy preview tidak boleh memakai nilai produksi.
+- Untuk menjalankan lokal ke staging, isi `.env.local` dengan konfigurasi web app `inzta-erp-staging` (Firebase Console → Project Settings → Your apps).
+- Rules dan index Firestore disimpan di `firestore.rules` dan `firestore.indexes.json`. Deploy ke staging: `npx firebase-tools deploy --only firestore --project staging`. Deploy ke produksi hanya setelah disetujui, dengan `--project production`.
+- `firestore/schema.json` mencatat nama dan tipe field setiap koleksi (diambil dari produksi tanpa nilai). Firestore tidak punya skema, jadi file ini menjadi acuan.
+- `scripts/seed-staging.mjs` mengisi staging dengan dokumen `_schema/<koleksi>` (daftar field), `invoice_settings/default` dan `counters/invoice_UJI` (faktur uji berawalan UJI), serta profil pengguna. Script menolak jalan untuk proyek selain `inzta-erp-staging`.
+
+```bash
+node scripts/seed-staging.mjs --dry
+node scripts/seed-staging.mjs --user email@contoh.com:Owner
+```
+
+Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authentication → Users), dengan password yang berbeda dari produksi.
+
+---
+
 ## Struktur Folder
 
 ```

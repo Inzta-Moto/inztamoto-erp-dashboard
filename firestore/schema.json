@@ -1,0 +1,372 @@
+{
+  "description": "Skema Firestore ERP InztaMoto. Firestore tidak punya skema; file ini mencatat nama dan tipe field yang dipakai, diambil dari semua dokumen produksi (database-inzta) pada 2026-11-11 tanpa nilai apa pun. Tipe \"a|b\" berarti field itu pernah berisi kedua tipe. Field bertitik = isi map, [] = isi array.",
+  "generatedAt": "2026-11-11",
+  "collections": {
+    "categories": {
+      "source": "produksi",
+      "fields": {
+        "createdAt": "string",
+        "description": "string",
+        "name": "string",
+        "productCount": "integer",
+        "skuCode": "string",
+        "slug": "string",
+        "updatedAt": "string"
+      }
+    },
+    "counters": {
+      "source": "produksi",
+      "fields": {
+        "createdAt": "string",
+        "createdBy": "map",
+        "createdBy.name": "string",
+        "createdBy.uid": "string",
+        "lastInvoiceId": "string",
+        "next": "integer",
+        "prefix": "string",
+        "updatedAt": "string"
+      },
+      "docId": "invoice_<prefix>, contoh invoice_INV"
+    },
+    "investor_agreement": {
+      "source": "kode (belum ada dokumen di produksi)",
+      "docId": "current",
+      "fields": {
+        "effectiveDate": "string|null",
+        "updatedAt": "string",
+        "updatedBy": "string"
+      }
+    },
+    "investor_payments": {
+      "source": "kode (belum ada dokumen di produksi)",
+      "fields": {
+        "kind": "string",
+        "periodMonth": "integer",
+        "amount": "integer",
+        "paidDate": "string",
+        "repaymentNumber": "integer",
+        "note": "string",
+        "recordedAt": "string",
+        "recordedBy": "string",
+        "updatedAt": "string",
+        "updatedBy": "string"
+      }
+    },
+    "investor_purchases": {
+      "source": "produksi",
+      "fields": {
+        "category": "string",
+        "createdAt": "string",
+        "createdBy": "string",
+        "date": "string",
+        "investorAgreementId": "string",
+        "itemName": "string",
+        "note": "string",
+        "quantity": "integer",
+        "totalCost": "integer",
+        "unit": "string",
+        "unitPrice": "integer",
+        "updatedAt": "string",
+        "updatedBy": "string"
+      }
+    },
+    "invoice_settings": {
+      "source": "produksi",
+      "fields": {
+        "address": "string",
+        "bankAccounts": "array<map>",
+        "bankAccounts[].bank": "string",
+        "bankAccounts[].holder": "string",
+        "bankAccounts[].number": "string",
+        "businessName": "string",
+        "defaultDueDays": "integer",
+        "defaultTax": "map",
+        "defaultTax.label": "string",
+        "defaultTax.type": "string",
+        "defaultTax.value": "integer",
+        "logoUrl": "string",
+        "numberPad": "integer",
+        "numberPrefix": "string",
+        "terms": "string",
+        "updatedAt": "string",
+        "updatedBy": "map",
+        "updatedBy.name": "string",
+        "updatedBy.uid": "string"
+      },
+      "docId": "default"
+    },
+    "invoices": {
+      "source": "produksi",
+      "fields": {
+        "balanceDue": "integer",
+        "bulkDiscount": "map",
+        "bulkDiscount.preset": "string",
+        "bulkDiscount.value": "integer",
+        "business": "map",
+        "business.address": "string",
+        "business.bankAccounts": "array<map>",
+        "business.bankAccounts[].bank": "string",
+        "business.bankAccounts[].holder": "string",
+        "business.bankAccounts[].number": "string",
+        "business.logoUrl": "string",
+        "business.name": "string",
+        "business.terms": "string",
+        "business.title": "string",
+        "cancelReason": "string",
+        "cancelledAt": "string",
+        "cancelledBy": "map",
+        "cancelledBy.name": "string",
+        "cancelledBy.uid": "string",
+        "createdAt": "string",
+        "createdBy": "map",
+        "createdBy.name": "string",
+        "createdBy.uid": "string",
+        "customer": "map",
+        "customer.city": "string",
+        "customer.name": "string",
+        "customer.nameLower": "string",
+        "customer.phone": "string",
+        "customer.resellerId": "string",
+        "customer.type": "string",
+        "dueDate": "string",
+        "hidden": "boolean",
+        "hiddenAt": "string",
+        "hiddenBy": "map",
+        "hiddenBy.name": "string",
+        "hiddenBy.uid": "string",
+        "invoiceDiscount": "map",
+        "invoiceDiscount.type": "string",
+        "invoiceDiscount.value": "integer",
+        "invoiceDiscountAmount": "integer",
+        "isOpen": "boolean",
+        "issueDate": "string",
+        "issuedAt": "string",
+        "issuedBy": "map",
+        "issuedBy.name": "string",
+        "issuedBy.uid": "string",
+        "items": "array<map>",
+        "items[].catalogPrice": "integer",
+        "items[].discount": "map",
+        "items[].discount.type": "string",
+        "items[].discount.value": "integer",
+        "items[].imageUrl": "string",
+        "items[].lineId": "string",
+        "items[].lineTotal": "integer",
+        "items[].name": "string",
+        "items[].netUnitPrice": "integer",
+        "items[].note": "string",
+        "items[].productId": "string",
+        "items[].qty": "integer",
+        "items[].sku": "string",
+        "items[].unitDiscount": "integer",
+        "items[].unitPrice": "integer",
+        "lastSharedAt": "string",
+        "notes": "string",
+        "number": "string",
+        "numberPrefix": "string",
+        "numberSeq": "integer",
+        "otherFee": "map",
+        "otherFee.amount": "integer",
+        "otherFee.label": "string",
+        "paidAmount": "integer",
+        "paidAt": "null",
+        "paidBy": "null",
+        "paymentStatus": "string",
+        "schemaVersion": "integer",
+        "searchText": "string",
+        "shippingFee": "integer",
+        "status": "string",
+        "subtotal": "integer",
+        "tax": "map",
+        "tax.label": "string",
+        "tax.type": "string",
+        "tax.value": "integer",
+        "taxAmount": "integer",
+        "total": "integer",
+        "updatedAt": "string",
+        "updatedBy": "map",
+        "updatedBy.name": "string",
+        "updatedBy.uid": "string"
+      }
+    },
+    "payrolls": {
+      "source": "produksi",
+      "fields": {
+        "baseSalary": "integer",
+        "bonus": "integer",
+        "createdAt": "string",
+        "deduction": "integer",
+        "employeeName": "string",
+        "employeeRole": "string",
+        "note": "string",
+        "paymentDate": "string",
+        "period": "string",
+        "status": "string",
+        "totalPaid": "integer",
+        "updatedAt": "string"
+      }
+    },
+    "production": {
+      "source": "produksi",
+      "fields": {
+        "completedQty": "integer",
+        "date": "string",
+        "notes": "string",
+        "productId": "string",
+        "productName": "string",
+        "sku": "string",
+        "status": "string",
+        "targetQty": "integer"
+      }
+    },
+    "production_purchases": {
+      "source": "produksi",
+      "fields": {
+        "category": "string",
+        "closedAt": "string",
+        "createdAt": "string",
+        "date": "string",
+        "itemName": "string",
+        "note": "string",
+        "quantity": "integer",
+        "status": "string",
+        "totalCost": "integer",
+        "unit": "string",
+        "unitPrice": "integer",
+        "updatedAt": "string",
+        "weekKey": "string"
+      }
+    },
+    "production_salaries": {
+      "source": "produksi",
+      "fields": {
+        "createdAt": "string",
+        "grandTotal": "integer",
+        "items": "array<map>",
+        "items[].productId": "string",
+        "items[].productName": "string",
+        "items[].qty": "integer",
+        "items[].subtotal": "integer",
+        "items[].type": "string",
+        "items[].upah": "integer",
+        "periodDate": "string",
+        "updatedAt": "string",
+        "workerName": "string",
+        "workers": "array<string>"
+      }
+    },
+    "products": {
+      "source": "produksi",
+      "fields": {
+        "categoryId": "string",
+        "costPrice": "integer",
+        "createdAt": "string",
+        "description": "string",
+        "featured": "boolean",
+        "images": "array|array<map>",
+        "images[].imageUrl": "string",
+        "images[].publicId": "string",
+        "importedAt": "string",
+        "importedFrom": "string",
+        "margin": "integer",
+        "name": "string",
+        "originalPrice": "integer",
+        "profit": "integer",
+        "sellingPrice": "integer",
+        "sku": "string",
+        "slug": "string",
+        "sourceCategory": "string",
+        "sourceProductId": "string",
+        "status": "string",
+        "stock": "integer",
+        "updatedAt": "string"
+      }
+    },
+    "resellers": {
+      "source": "produksi",
+      "fields": {
+        "createdAt": "string",
+        "name": "string",
+        "status": "string",
+        "updatedAt": "string"
+      }
+    },
+    "sales": {
+      "source": "produksi",
+      "fields": {
+        "channel": "string",
+        "city": "string",
+        "costPrice": "integer",
+        "createdAt": "string",
+        "customer": "string",
+        "date": "string",
+        "district": "string",
+        "expedition": "string",
+        "margin": "integer",
+        "marketplaceDifference": "integer",
+        "modal": "integer",
+        "notes": "string",
+        "productId": "string",
+        "productName": "string",
+        "profit": "integer",
+        "quantity": "integer",
+        "realProfit": "integer",
+        "realRevenue": "integer",
+        "realUnitPrice": "integer",
+        "resellerId": "string",
+        "resellerName": "string",
+        "revenue": "integer",
+        "sellingPrice": "integer",
+        "sku": "string",
+        "standardRevenue": "integer",
+        "txNumber": "string",
+        "updatedAt": "string"
+      }
+    },
+    "sponsorships": {
+      "source": "produksi",
+      "fields": {
+        "createdAt": "string",
+        "estimatedCost": "integer",
+        "eventDate": "string",
+        "eventName": "string",
+        "location": "string",
+        "supportDetails": "string",
+        "supportItems": "array<map>",
+        "supportItems[].itemName": "string",
+        "supportItems[].nominal": "integer",
+        "supportItems[].productId": "string",
+        "supportItems[].qty": "string",
+        "supportItems[].type": "string",
+        "updatedAt": "string"
+      }
+    },
+    "stock_movements": {
+      "source": "produksi",
+      "fields": {
+        "archived": "boolean",
+        "archivedAt": "string",
+        "createdAt": "string",
+        "date": "string",
+        "note": "string",
+        "productId": "string",
+        "productName": "string",
+        "qty": "integer",
+        "reverted": "boolean",
+        "sku": "string",
+        "type": "string"
+      }
+    },
+    "users": {
+      "source": "produksi",
+      "fields": {
+        "email": "string",
+        "name": "string",
+        "role": "string",
+        "status": "string",
+        "updatedAt": "string"
+      },
+      "docId": "email pengguna (huruf kecil)"
+    }
+  }
+}
