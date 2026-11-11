@@ -60,6 +60,7 @@ const CHANNELS = [
    "Website",
    "Shopee",
    "Tokopedia",
+   "TikTok Shop",
    "Reseller",
    "Offline Store",
 ];
@@ -564,6 +565,7 @@ function channelBadge(ch) {
       website: "badge-website",
       shopee: "badge-shopee",
       tokopedia: "badge-tokopedia",
+      tiktok_shop: "badge-tiktok_shop",
       reseller: "badge-whatsapp",
       offline_store: "badge-offline_store",
    };
@@ -1784,11 +1786,24 @@ function renderChannelChart() {
       const channel = normalizeChannelValue(s.channel || "-");
       ch[channel] = (ch[channel] || 0) + (s.revenue || 0);
    });
-   const colors = ["#7A1F1F", "#EE4D2D", "#2E7D32", "#128C7E", "#4B5563"];
+   // One fixed color per channel, so a channel keeps its color whatever order the sales arrive in.
+   const channelColors = {
+      Website: "#7A1F1F",
+      Shopee: "#EE4D2D",
+      Tokopedia: "#2E7D32",
+      "TikTok Shop": "#FE2C55",
+      Reseller: "#128C7E",
+      "Offline Store": "#4B5563",
+   };
+   const fallbackColors = ["#B45309", "#6D28D9", "#0369A1", "#9CA3AF"];
+   const labels = Object.keys(ch);
+   const colors = labels.map(
+      (label, i) => channelColors[label] || fallbackColors[i % fallbackColors.length],
+   );
    state.charts.channel = new Chart($("#chartChannel").getContext("2d"), {
       type: "doughnut",
       data: {
-         labels: Object.keys(ch),
+         labels: labels,
          datasets: [
             {
                data: Object.values(ch),

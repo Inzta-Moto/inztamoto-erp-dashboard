@@ -120,10 +120,11 @@ const CITIES = [
   ["Depok", "Beji"], ["Tangerang", "Ciledug"], ["Medan", "Medan Baru"], ["Denpasar", "Denpasar Selatan"],
 ];
 const FIRST = ["Andi", "Budi", "Citra", "Dimas", "Eka", "Fajar", "Gilang", "Hana", "Irfan", "Joko", "Kevin", "Lina", "Rizal", "Sari", "Tono", "Wahyu"];
-const CHANNEL_W = [["Shopee", 45], ["Tokopedia", 28], ["Reseller", 12], ["Website", 10], ["Offline Store", 5]];
+const CHANNEL_W = [["Shopee", 42], ["Tokopedia", 16], ["TikTok Shop", 15], ["Reseller", 12], ["Website", 10], ["Offline Store", 5]];
 const EXP = {
   Shopee: [["Shopee Express", 6], ["J&T", 3], ["SiCepat", 1]],
   Tokopedia: [["J&T", 4], ["SiCepat", 3], ["JNE", 2], ["Anteraja", 1]],
+  "TikTok Shop": [["J&T", 5], ["SiCepat", 3], ["Anteraja", 1]],
   Website: [["JNE", 2], ["J&T", 2], ["SiCepat", 1]],
   Reseller: [["Lainnya", 3], ["J&T", 1]],
   "Offline Store": [["", 1]],
@@ -147,7 +148,7 @@ for (let off = DAYS - 1; off >= 0; off--) {
     if (p.stock - qty < 2) continue;
     const channel = weighted(CHANNEL_W);
     const reseller = channel === "Reseller" ? pick(resellers) : null;
-    const factor = channel === "Reseller" ? 0.82 : channel === "Shopee" || channel === "Tokopedia" ? 1 - int(0, 8) / 100 : 1;
+    const factor = channel === "Reseller" ? 0.82 : ["Shopee", "Tokopedia", "TikTok Shop"].includes(channel) ? 1 - int(0, 8) / 100 : 1;
     const realUnitPrice = round(p.sellingPrice * factor, 500);
     const expedition = weighted(EXP[channel]);
     const [city, district] = channel === "Offline Store" ? ["Bandung", "Coblong"] : pick(CITIES);

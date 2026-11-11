@@ -846,6 +846,7 @@ export default function InztamotoApp() {
                                  <option value="Website">Website</option>
                                  <option value="Shopee">Shopee</option>
                                  <option value="Tokopedia">Tokopedia</option>
+                                 <option value="TikTok Shop">TikTok Shop</option>
                                  <option value="Reseller">Reseller</option>
                                  <option value="Offline Store">
                                     Offline Store
