@@ -589,6 +589,7 @@ select.form-input {
 .badge-website { background: rgba(0,0,0,.06); color: #1A1A1A }
 .badge-shopee { background: #FFF2E8; color: #EE4D2D }
 .badge-tokopedia { background: #F6FFED; color: #2E7D32 }
+.badge-tiktok_shop { background: #FFF0F3; color: #D6153F }
 .badge-whatsapp { background: #E6FFFA; color: #0D9488 }
 .badge-offline_store { background: #F1F3F4; color: #5F6368 }
 @keyframes badgePulse { 0%, 100% { box-shadow: none } 50% { box-shadow: 0 0 0 4px rgba(220,38,38,.06) } }
