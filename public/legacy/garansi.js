@@ -183,6 +183,7 @@ function grInitialState() {
       masukan: grKindState("masukan"),
       badge: { lastAt: 0, inflight: false, newCount: null, newFeedbackCount: null },
       warnedNoBase: false,
+      lastPage: null,
    };
 }
 
@@ -282,17 +283,20 @@ async function warrantyApi(path, options) {
       }, GR_FETCH_TIMEOUT_MS);
    }
    var res;
+   var data = null;
    try {
       res = await fetch(base + path, init);
+      try {
+         data = await res.json();
+      } catch (e) {
+         if (controller && controller.signal.aborted) throw e;
+         data = null;
+      }
    } catch (e) {
       throw grApiError(0, GR_MSG.network);
    } finally {
       if (timer) clearTimeout(timer);
    }
-   var data = null;
-   try {
-      data = await res.json();
-   } catch (e) {}
    if (res.ok) return data || {};
 
    // An ID token can expire between getIdToken() and the server check; refresh once before giving up.
@@ -395,14 +399,26 @@ function grPage(kind) {
 
 function warrantyOnNavigate(page) {
    refreshWarrantyBadge(false);
+   var samePage = gr.lastPage === page;
+   gr.lastPage = page;
    if (page !== "garansi" && page !== "masukan") return;
    var s = gr[page];
+   if (samePage && s.view === "detail" && (s.saving || grHasDraft(page))) return;
    s.view = "list";
    s.openId = null;
    s.detail = null;
    s.justSaved = false;
+   s.detailSeq++;
    grRender(page);
    grLoadList(page);
+}
+
+function grHasDraft(kind) {
+   var d = grCaptureDraft(kind);
+   if (!d) return false;
+   var item = gr[kind].detail;
+   var savedInternal = kind === "masukan" && item ? String(item.internalNote || "") : "";
+   return d.publicNote.trim() !== "" || d.internalNote.trim() !== savedInternal.trim();
 }
 
 function renderGaransi() {
@@ -436,6 +452,8 @@ async function grLoadList(kind) {
       s.items = items.filter(function (it) {
          return it && typeof it[GR_KINDS[kind].idKey] === "string";
       });
+      s.matched = typeof data.matched === "number" ? data.matched : s.items.length;
+      s.truncated = data.truncated === true;
       s.loaded = true;
       s.loadedAt = new Date();
       grApplyBadges();
@@ -453,7 +471,7 @@ async function grLoadList(kind) {
 function grNewCountLabel(kind) {
    var s = gr[kind];
    var count = null;
-   if (s.loaded && (s.filter === "open" || s.filter === "all" || s.filter === "new")) {
+   if (s.loaded && !s.truncated && (s.filter === "open" || s.filter === "all" || s.filter === "new")) {
       count = s.items.filter(function (it) {
          return it.status === "new";
       }).length;
@@ -492,6 +510,12 @@ function grRenderList(kind) {
          " di filter ini</h4><p>Ganti filter status atau tekan Muat ulang.</p></div>";
    } else {
       body = kind === "garansi" ? grClaimTable(s.items) : grFeedbackTable(s.items);
+      if (s.truncated) {
+         body +=
+            '<p class="gr-truncated">Menampilkan ' + s.items.length + " " + cfg.noun + " terbaru" +
+            (s.matched > s.items.length ? " dari " + s.matched : "") +
+            ". Data lama tidak ikut dimuat; pakai filter status untuk mempersempit.</p>";
+      }
    }
 
    el.dataset.grView = s.loading ? "list-loading" : s.error ? "list-error" : "list";
@@ -578,6 +602,7 @@ function grBackToList(kind) {
    s.openId = null;
    s.detail = null;
    s.justSaved = false;
+   s.detailSeq++;
    grRenderList(kind);
 }
 
@@ -591,16 +616,16 @@ async function grLoadDetail(kind, keepDraft) {
    grRenderDetail(kind);
    try {
       var data = await warrantyApi(cfg.path + "/" + encodeURIComponent(id));
-      if (seq !== s.detailSeq) return;
+      if (seq !== s.detailSeq || s.view !== "detail" || s.openId !== id) return;
       var item = data[cfg.itemKey];
       if (!item || item[cfg.idKey] !== id) throw grApiError(500, GR_MSG.server);
       s.detail = item;
       grSyncListItem(kind, item);
    } catch (e) {
-      if (seq !== s.detailSeq) return;
+      if (seq !== s.detailSeq || s.view !== "detail" || s.openId !== id) return;
       s.detailError = e.message;
    } finally {
-      if (seq === s.detailSeq) {
+      if (seq === s.detailSeq && s.view === "detail" && s.openId === id) {
          s.detailLoading = false;
          grRenderDetail(kind);
          if (keepDraft) grRestoreDraft(kind, keepDraft);
@@ -654,7 +679,7 @@ function grRenderDetail(kind) {
       '<div class="gr-detail-head">' + back +
       '<h2 class="gr-title">' + grEsc(item[cfg.idKey]) + "</h2>" + grStatusChip(kind, item.status) +
       (kind === "garansi" ? grMarks(item) : "") +
-      '<button type="button" class="btn btn-outline btn-sm gr-head-reload" data-gr-action="reload-detail"' + (s.detailLoading ? " disabled" : "") + ">" +
+      '<button type="button" class="btn btn-outline btn-sm gr-head-reload" data-gr-action="reload-detail"' + (s.detailLoading || s.saving ? " disabled" : "") + ">" +
       '<i class="fas fa-rotate' + (s.detailLoading ? " fa-spin" : "") + '"></i>Muat ulang</button>' +
       "</div>" +
       '<div class="gr-detail-grid">' +
@@ -937,10 +962,14 @@ function grSyncStatusForm(kind) {
    }
    var assignee = form.querySelector("#" + kind + "Assignee");
    if (assignee) {
+      // The lock to Produksi is only a preview of what the server does on in_progress; leaving that target
+      // must give back the staff member's own choice, or the save would silently reassign the ticket.
       if (target === "in_progress") {
+         if (!assignee.disabled) assignee.dataset.grChoice = assignee.value;
          assignee.value = "produksi";
          assignee.disabled = true;
-      } else {
+      } else if (assignee.disabled) {
+         assignee.value = assignee.dataset.grChoice || item.assignee || "admin";
          assignee.disabled = false;
       }
    }
@@ -1012,8 +1041,8 @@ function grRestoreDraft(kind, draft) {
    if (!page || !draft) return;
    var pub = page.querySelector("#" + kind + "PublicNote");
    var internal = page.querySelector("#" + kind + "InternalNote");
-   if (pub && draft.publicNote) pub.value = draft.publicNote;
-   if (internal && draft.internalNote) internal.value = draft.internalNote;
+   if (pub && typeof draft.publicNote === "string") pub.value = draft.publicNote;
+   if (internal && typeof draft.internalNote === "string") internal.value = draft.internalNote;
 }
 
 async function grSave(kind, form) {
@@ -1029,7 +1058,11 @@ async function grSave(kind, form) {
    }
    grFormError(form, "");
    var before = s.detail;
+   var savedId = before[cfg.idKey];
    var draft = grCaptureDraft(kind);
+   var stillHere = function () {
+      return s.view === "detail" && s.openId === savedId;
+   };
    s.saving = true;
    grSetSaving(form, true);
    try {
@@ -1040,7 +1073,16 @@ async function grSave(kind, form) {
       });
       var updated = data[cfg.itemKey];
       s.saving = false;
-      if (!updated || updated[cfg.idKey] !== before[cfg.idKey]) {
+      if (!stillHere()) {
+         if (updated && updated[cfg.idKey] === savedId) {
+            grAdjustNewCount(kind, before.status, updated.status);
+            grSyncListItem(kind, updated);
+            if (s.view === "list") grRenderList(kind);
+         }
+         toast(GR_MSG.saved, "success");
+         return;
+      }
+      if (!updated || updated[cfg.idKey] !== savedId) {
          // The save went through but the reply has no ticket; reload it instead of guessing the new state.
          s.justSaved = true;
          toast(GR_MSG.saved, "success");
@@ -1057,6 +1099,11 @@ async function grSave(kind, form) {
       if (wa && built.body.status) wa.focus();
    } catch (e) {
       s.saving = false;
+      // The user already left this ticket: never reload or restore its notes into another one.
+      if (!stillHere()) {
+         if (e.status === 409 || e.status === 401 || e.status === 403) toast(e.message, "error");
+         return;
+      }
       if (e.status === 409) {
          // STALE and TRANSITION both mean the loaded ticket is out of date; e.message is a fixed string either way.
          toast(e.message, "error");
@@ -1081,6 +1128,9 @@ async function grSave(kind, form) {
 }
 
 function grSetSaving(form, saving) {
+   var page = form.closest(".page");
+   var reload = page && page.querySelector('[data-gr-action="reload-detail"]');
+   if (reload) reload.disabled = saving;
    var btn = form.querySelector(".gr-save");
    if (!btn) return;
    btn.disabled = saving;
