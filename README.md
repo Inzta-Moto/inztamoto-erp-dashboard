@@ -98,7 +98,13 @@ node scripts/seed-staging.mjs --dry
 node scripts/seed-staging.mjs --user email@contoh.com:Owner
 ```
 
-Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authentication → Users), dengan password yang berbeda dari produksi.
+Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authentication → Users), dengan password yang berbeda dari produksi. Polanya: email produksi dengan akhiran `-dev`, misalnya `owner-dev@inzta.id`.
+
+**Deploy staging.** Alamat tetap: `inztamoto-erp-dashboard-git-staging-pnjias-projects.vercel.app` (dilindungi login Vercel). Push ke branch tidak otomatis membuat deploy, jadi:
+
+1. Gabungkan perubahan yang mau diuji ke branch `staging`.
+2. Vercel → proyek `inztamoto-erp-dashboard` → Deployments → **Create Deployment** → pilih branch `staging`. Jangan centang production.
+3. Alamat preview lain (per deploy) tidak bisa dipakai login sampai domainnya ditambahkan di Firebase Console `inzta-erp-staging` → Authentication → Settings → Authorized domains.
 
 ---
 
