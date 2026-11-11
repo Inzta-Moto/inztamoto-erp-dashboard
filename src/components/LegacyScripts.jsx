@@ -44,6 +44,10 @@ export default function LegacyScripts() {
         cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
         uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
       },
+      // F-031: base URL of the inzta.id API that owns warranty claims and feedback (design.md section 6).
+      warranty: {
+        apiBase: process.env.NEXT_PUBLIC_WARRANTY_API_BASE || "",
+      },
     };
 
     const run = async () => {
@@ -56,6 +60,7 @@ export default function LegacyScripts() {
         await loadScript("/legacy/app-runtime.js");
         await loadScript("/legacy/faktur-calc.js");
         await loadScript("/legacy/faktur.js");
+        await loadScript("/legacy/garansi.js");
       } catch (error) {
         console.error("[Inztamoto Legacy Runtime]", error);
       }
