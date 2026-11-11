@@ -85,9 +85,10 @@ Ada dua proyek Firebase. Kode yang sama, database berbeda.
 | Lingkungan | Proyek Firebase | Vercel | Data |
 |---|---|---|---|
 | Produksi | `database-inzta` | Production (`main`, dashboard.inzta.id) | data asli |
-| Staging | `inzta-erp-staging` | Preview (semua branch selain `main`, alamat tetap dari branch `staging`) | kosong, hanya data uji |
+| Staging | `inzta-erp-staging` | Preview (semua branch selain `main`), alamat `inzta-dashboard-staging.vercel.app` dari branch `staging` | kosong, hanya data uji |
 
 - Variabel `NEXT_PUBLIC_FIREBASE_*` di Vercel: target Production berisi nilai `database-inzta`, target Preview berisi nilai `inzta-erp-staging`. Deploy preview tidak boleh memakai nilai produksi.
+- `CLOUDINARY_URL` (sensitive, Production dan Preview) berisi kredensial API Cloudinary untuk kode server. Jangan diberi awalan `NEXT_PUBLIC_` karena isinya rahasia.
 - Untuk menjalankan lokal ke staging, isi `.env.local` dengan konfigurasi web app `inzta-erp-staging` (Firebase Console → Project Settings → Your apps).
 - Rules dan index Firestore disimpan di `firestore.rules` dan `firestore.indexes.json`. Deploy ke staging: `npx firebase-tools deploy --only firestore --project staging`. Deploy ke produksi hanya setelah disetujui, dengan `--project production`.
 - `firestore/schema.json` mencatat nama dan tipe field setiap koleksi (diambil dari produksi tanpa nilai). Firestore tidak punya skema, jadi file ini menjadi acuan.
@@ -100,7 +101,7 @@ node scripts/seed-staging.mjs --user email@contoh.com:Owner
 
 Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authentication → Users), dengan password yang berbeda dari produksi. Polanya: email produksi dengan akhiran `-dev`, misalnya `owner-dev@inzta.id`.
 
-**Deploy staging.** Alamat tetap: `inztamoto-erp-dashboard-git-staging-pnjias-projects.vercel.app` (dilindungi login Vercel). Push ke branch tidak otomatis membuat deploy, jadi:
+**Deploy staging.** Alamat tetap: `inzta-dashboard-staging.vercel.app` (domain proyek yang ditautkan ke branch `staging`; alamat lama `inztamoto-erp-dashboard-git-staging-pnjias-projects.vercel.app` tetap jalan). Push ke branch tidak otomatis membuat deploy, jadi:
 
 1. Gabungkan perubahan yang mau diuji ke branch `staging`.
 2. Vercel → proyek `inztamoto-erp-dashboard` → Deployments → **Create Deployment** → pilih branch `staging`. Jangan centang production.
