@@ -99,6 +99,16 @@ node scripts/seed-staging.mjs --dry
 node scripts/seed-staging.mjs --user email@contoh.com:Owner
 ```
 
+**Data dummy staging.** `scripts/seed-staging-dummy.mjs` mengisi staging dengan data karangan selama 90 hari terakhir: 6 kategori, 16 produk (satu stok rendah, satu habis), 3 reseller, sekitar 175 penjualan di semua channel beserta pergerakan stoknya, order produksi, belanja produksi, salary produksi, gaji tim, sponsorship, dan data investor. Semua ID berawalan `dummy-`; menjalankan ulang akan menghapus lalu menulis ulang data dummy saja. Faktur tidak diisi, buat dari menu Faktur (nomor `UJI-0001` dan seterusnya).
+
+```bash
+node scripts/seed-staging-dummy.mjs --dry
+node scripts/seed-staging-dummy.mjs
+node scripts/seed-staging-dummy.mjs --clear
+```
+
+Catatan: saat database kosong, aplikasi otomatis membuat 3 kategori dan 3 produk contoh (`seedIfEmpty`). Jalankan seed dummy dulu sebelum membuka staging yang baru dikosongkan.
+
 Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authentication → Users), dengan password yang berbeda dari produksi. Polanya: email produksi dengan akhiran `-dev`, misalnya `owner-dev@inzta.id`.
 
 **Deploy staging.** Alamat tetap: `inzta-dashboard-staging.vercel.app` (domain proyek yang ditautkan ke branch `staging`; alamat lama `inztamoto-erp-dashboard-git-staging-pnjias-projects.vercel.app` tetap jalan). Push ke branch tidak otomatis membuat deploy, jadi:
