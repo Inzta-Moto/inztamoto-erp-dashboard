@@ -208,7 +208,7 @@ const state = {
    salaryProd: { search: "", month: "all", year: "all", page: 1, perPage: 8 },
    spons: { search: "", month: "all", year: "all", page: 1, perPage: 8 },
    stockHistory: { search: "", filter: "bulan_ini", page: 1, perPage: 15 },
-   report: { period: "monthly", date: new Date().toISOString().split("T")[0], month: "all", year: String(new Date().getFullYear()) },
+   report: { period: "monthly", date: new Date().toISOString().split("T")[0], month: "all", year: String(new Date().getFullYear()), channel: "all" },
    charts: {},
    tempImageData: null,
    salesTrend: {
@@ -7533,6 +7533,45 @@ window.doDeleteSponsorship = async function (docId) {
 /* =========================================================
    LAPORAN
    ========================================================= */
+// Only report types built purely from sales get the channel filter. The profit report also
+// subtracts production and payroll costs that carry no channel, so filtering it would mislead.
+const REPORT_CHANNEL_TYPES = ["sales", "bestseller"];
+
+function getReportChannel(type) {
+   return REPORT_CHANNEL_TYPES.includes(type) ? state.report.channel || "all" : "all";
+}
+
+// Filters the already-loaded sales listener data in memory; no extra Firestore reads.
+function filterReportSales(type, period, month, year, date) {
+   const channel = getReportChannel(type);
+   return state.sales.filter(
+      (s) =>
+         filterByReportPeriod(s.date, period, month, year, date) &&
+         isChannelMatch(s.channel, channel),
+   );
+}
+
+function populateReportChannelFilter(type) {
+   const group = $("#reportChannelFilterGroup");
+   const sel = $("#reportChannelFilter");
+   if (!group || !sel) return;
+   group.style.display = REPORT_CHANNEL_TYPES.includes(type) ? "block" : "none";
+   // Known channels first, then any other value actually stored on sales (legacy WhatsApp folds into Reseller).
+   const channels = [...CHANNELS];
+   const extras = new Set();
+   state.sales.forEach((s) => {
+      const ch = normalizeChannelValue(s.channel);
+      if (ch && typeof ch === "string" && !channels.includes(ch)) extras.add(ch);
+   });
+   const selected = state.report.channel || "all";
+   if (selected !== "all" && !channels.includes(selected)) extras.add(selected);
+   channels.push(...[...extras].sort((a, b) => a.localeCompare(b)));
+   sel.innerHTML = "";
+   sel.add(new Option("Semua Channel", "all"));
+   channels.forEach((ch) => sel.add(new Option(ch, ch)));
+   sel.value = selected;
+}
+
 function renderReports() {
    const type = $("#reportType").value;
    const period = $("#reportPeriod") ? $("#reportPeriod").value : (state.report.period || "monthly");
@@ -7545,9 +7584,8 @@ function renderReports() {
 
    syncReportPeriodVisibility();
 
-   const rSales = state.sales.filter((s) =>
-      filterByReportPeriod(s.date, period, month, year, date),
-   );
+   const reportChannel = getReportChannel(type);
+   const rSales = filterReportSales(type, period, month, year, date);
    const rPurchases = state.productionPurchases.filter((p) =>
       filterByReportPeriod(p.date, period, month, year, date),
    );
@@ -7619,7 +7657,15 @@ function renderReports() {
             ),
             cls: "maroon",
          },
-         { label: "Channel Terbanyak", value: getTopChannel(), cls: "gold" },
+         // With one channel selected the "top channel" is trivially that channel, so name it instead.
+         reportChannel === "all"
+            ? { label: "Channel Terbanyak", value: getTopChannel(), cls: "gold" }
+            : {
+                 label: "Channel",
+                 // Channel comes from stored sale data and lands in innerHTML, so escape it.
+                 value: reportChannel.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`),
+                 cls: "gold",
+              },
       ],
       profit: [
          { label: "Total Pendapatan", value: fmtRp(totalRev), cls: "gold" },
@@ -7721,6 +7767,7 @@ function renderReports() {
 
    // Refresh filter dropdowns so year list stays current
    populateReportPeriodFilters();
+   populateReportChannelFilter(type);
 
    renderReportChart(type, rSales);
    renderReportDetail(type, rSales);
@@ -8032,6 +8079,12 @@ $("#reportYearFilter").addEventListener("change", (e) => {
    state.report.year = e.target.value;
    renderReports();
 });
+if ($("#reportChannelFilter")) {
+   $("#reportChannelFilter").addEventListener("change", (e) => {
+      state.report.channel = e.target.value;
+      renderReports();
+   });
+}
 
 const REPORT_TITLES = {
    sales: "LAPORAN PENJUALAN",
@@ -8183,9 +8236,12 @@ $("#exportCsvBtn").addEventListener("click", () => {
    const period = $("#reportPeriod") ? $("#reportPeriod").value : (state.report.period || "monthly");
    state.report.period = period;
    const { month, year, date } = state.report;
-   const rSales = state.sales
-      .filter((s) => filterByReportPeriod(s.date, period, month, year, date))
-      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+   const reportChannel = getReportChannel(type);
+   const rSales = filterReportSales(type, period, month, year, date).sort((a, b) =>
+      (a.date || "").localeCompare(b.date || ""),
+   );
+   const channelKey = reportChannel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+   const channelSlug = reportChannel === "all" ? "" : "_" + (channelKey || "channel");
    const periodLabel =
       period === "daily"
          ? `harian_${date || today}`
@@ -8380,19 +8436,27 @@ $("#exportCsvBtn").addEventListener("click", () => {
    }
 
    if (!rows.length) {
-      toast("Tidak ada data laporan untuk di-export pada periode ini", "warning");
+      toast(
+         reportChannel === "all"
+            ? "Tidak ada data laporan untuk di-export pada periode ini"
+            : `Tidak ada data laporan channel ${reportChannel} untuk di-export pada periode ini`,
+         "warning",
+      );
       return;
    }
+
+   const baseTitle = REPORT_TITLES[type] || "LAPORAN";
+   const info = [["Periode", periodInfo]];
+   if (REPORT_CHANNEL_TYPES.includes(type)) {
+      info.push(["Channel", reportChannel === "all" ? "Semua Channel" : reportChannel]);
+   }
+   info.push(["Tanggal Export", exportDateStr], ["Jumlah Baris", rows.length]);
 
    const workbook = new ExcelJS.Workbook();
    const worksheet = workbook.addWorksheet((REPORT_TITLES[type] || "Laporan").slice(0, 31));
    buildReportWorksheet(worksheet, {
-      title: REPORT_TITLES[type] || "LAPORAN",
-      info: [
-         ["Periode", periodInfo],
-         ["Tanggal Export", exportDateStr],
-         ["Jumlah Baris", rows.length],
-      ],
+      title: reportChannel === "all" ? baseTitle : `${baseTitle} - ${reportChannel.toUpperCase()}`,
+      info,
       summary,
       columns,
       rows,
@@ -8407,7 +8471,7 @@ $("#exportCsvBtn").addEventListener("click", () => {
          });
          const a = document.createElement("a");
          a.href = URL.createObjectURL(blob);
-         a.download = `laporan_${type}_${periodLabel}_${today}.xlsx`;
+         a.download = `laporan_${type}_${periodLabel}${channelSlug}_${today}.xlsx`;
          a.click();
          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
          toast("Laporan di-export ke Excel", "success");
