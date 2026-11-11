@@ -964,6 +964,12 @@ export default function InztamotoApp() {
                               <option value="all">Semua Tahun</option>
                            </select>
                         </div>
+                        {/* Channel filter: options filled from sales data, shown only for sales-based report types */}
+                        <div className="table-filter" id="reportChannelFilterGroup">
+                           <select id="reportChannelFilter" defaultValue="all" aria-label="Filter channel">
+                              <option value="all">Semua Channel</option>
+                           </select>
+                        </div>
                         <button
                            className="btn btn-outline btn-sm"
                            id="exportCsvBtn"
