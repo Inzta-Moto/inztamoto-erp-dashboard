@@ -1453,3 +1453,109 @@ body.fk-sheet-open { overflow: hidden }
   .fk-type { flex-basis: 112px }
   .fk-editor-title h2 { font-size: 17px }
 }
+
+/* Garansi and Masukan (F-031 release 1): staff screens over the inzta.id ERP API, built on the ERP tokens above. */
+.nav-item .nav-count { margin-left: auto; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 6px; background: #DC2626; color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums }
+.nav-item.active .nav-count { background: #FCD34D; color: #1A1A1A }
+#pageGaransi, #pageMasukan { padding-bottom: 48px }
+.gr-muted { color: var(--text-muted) }
+.gr-nowrap { white-space: nowrap }
+.gr-prewrap { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word }
+.gr-toolbar { gap: 10px 12px }
+.gr-toolbar-title { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0 }
+.gr-toolbar-title h3 { font-size: 15px; font-weight: 700; color: #1A1A1A; white-space: nowrap }
+.gr-toolbar .btn { min-height: 38px }
+.gr-toolbar .table-filter select { min-height: 38px; max-width: 100% }
+.gr-updated { font-size: 12px; width: 100%; text-align: right }
+.gr-new-count { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; background: #F1F3F4; color: #5F6368; font-size: 12px; font-weight: 700; white-space: nowrap }
+.gr-new-count.has-new { background: #FCE8E6; color: #C5221F }
+.gr-state { padding: 40px 20px }
+.gr-state .btn { margin-top: 12px }
+.gr-table-scroll { -webkit-overflow-scrolling: touch }
+.gr-table { min-width: 860px }
+.gr-table th { cursor: default }
+.gr-table th:hover { color: #4B5563 }
+.gr-row { cursor: pointer }
+.gr-row:hover td { background: #FFFDF5 }
+.gr-link { font-weight: 700; color: #1A1A1A; text-decoration: underline; text-underline-offset: 3px; padding: 6px 0; min-height: 32px; background: none; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; white-space: nowrap }
+.gr-link:focus-visible, .gr-photo:focus-visible, .gr-back:focus-visible, .gr-choice input:focus-visible + span { outline: 2px solid #D97706; outline-offset: 2px }
+.gr-excerpt { max-width: 340px; color: #374151 }
+.gr-marks-cell { white-space: nowrap }
+.gr-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #F1F3F4; color: #5F6368 }
+.gr-st-garansi-new, .gr-st-masukan-new { background: #FCE8E6; color: #C5221F }
+.gr-st-garansi-under_review, .gr-st-masukan-read { background: #E8F0FE; color: #1A56C9 }
+.gr-st-garansi-in_progress { background: #FEF3D6; color: #B06000 }
+.gr-st-garansi-waiting_customer { background: #F3E8FD; color: #7B1FA2 }
+.gr-st-garansi-resolved, .gr-st-masukan-followed_up { background: #E6F4EA; color: #137333 }
+.gr-st-garansi-rejected, .gr-st-masukan-archived { background: #F1F3F4; color: #5F6368 }
+.gr-mark { display: inline-flex; align-items: center; padding: 2px 8px; margin-right: 4px; border-radius: 6px; border: 1px solid var(--border); background: #fff; color: #57534E; font-size: 11px; font-weight: 600; white-space: nowrap }
+.gr-mark-warn { border-color: #F59E0B; background: #FFFBEB; color: #92400E }
+.gr-kind { display: inline-flex; padding: 2px 8px; border-radius: 6px; background: #FFFBEB; color: #92400E; font-size: 11px; font-weight: 700; white-space: nowrap }
+
+.gr-detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px }
+.gr-back { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: #fff; display: inline-flex; align-items: center; justify-content: center; color: var(--text); cursor: pointer; flex: 0 0 auto }
+.gr-title { font-size: 20px; font-weight: 800; color: #1A1A1A; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+.gr-head-reload { margin-left: auto }
+.gr-detail-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start }
+.gr-detail-main, .gr-detail-side { display: flex; flex-direction: column; gap: 16px; min-width: 0 }
+.gr-card { height: auto }
+.gr-card-head { padding: 14px 18px; border-bottom: 1px solid var(--border-light) }
+.gr-card-head h3 { font-size: 15px; font-weight: 700; color: #1A1A1A }
+.gr-card-body { padding: 16px 18px; font-size: 14px; color: #374151 }
+.gr-dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 12px; margin: 0 }
+.gr-dl + .gr-prewrap { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-light); line-height: 1.6 }
+.gr-field { display: contents }
+.gr-field dt { color: var(--text-muted); font-size: 13px; font-weight: 600 }
+.gr-field dd { margin: 0; min-width: 0; overflow-wrap: anywhere }
+.gr-dl-compact { grid-template-columns: 130px minmax(0, 1fr); margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border-light); font-size: 13px }
+.gr-link-ext { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; color: #B45309; font-weight: 700; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; min-height: 32px }
+.gr-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px }
+.gr-photo { aspect-ratio: 1 / 1; padding: 0; border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden; background: var(--primary-light); cursor: zoom-in }
+.gr-photo img { width: 100%; height: 100%; object-fit: cover; display: block }
+.gr-video { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: #0D9488; font-weight: 600 }
+.gr-status-form .form-group { margin-bottom: 14px }
+.gr-status-form textarea.form-input { resize: vertical; min-height: 64px; font-family: inherit; line-height: 1.5 }
+.gr-choices { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 8px }
+.gr-choices legend { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; padding: 0 }
+.gr-choice { position: relative; display: inline-flex }
+.gr-choice input { position: absolute; opacity: 0; width: 1px; height: 1px }
+.gr-choice span { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 13px; font-weight: 600; color: #57534E; cursor: pointer }
+.gr-choice input:checked + span { background: #1A1A1A; border-color: #1A1A1A; color: #FCD34D }
+.gr-req { font-size: 11px; font-weight: 700; color: var(--danger); margin-left: 4px }
+.gr-hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5 }
+.gr-hint-strong { color: #92400E; font-weight: 600; margin: -6px 0 12px }
+.gr-form-error { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: #FCE8E6; color: #C5221F; font-size: 13px; font-weight: 600; overflow-wrap: anywhere }
+.gr-saved { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; background: #E6F4EA; color: #137333; font-size: 13px; font-weight: 700 }
+.gr-save { width: 100%; justify-content: center; min-height: 44px }
+.gr-wa { width: 100%; justify-content: center; min-height: 44px; margin-top: 14px; gap: 8px }
+.gr-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px }
+.gr-tl-item { padding-left: 14px; border-left: 2px solid var(--border) }
+.gr-tl-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px }
+.gr-tl-meta span:last-child { overflow-wrap: anywhere }
+.gr-tl-move { font-weight: 700; color: #1A1A1A; font-size: 13px }
+.gr-tl-move i { font-size: 10px; color: var(--text-muted); margin: 0 4px }
+.gr-tl-line { font-size: 13px }
+.gr-tl-note { margin-top: 6px; font-size: 13px; display: flex; flex-direction: column; gap: 2px }
+.gr-tl-tag { font-size: 11px; font-weight: 700; color: #B45309 }
+.gr-tl-internal .gr-tl-tag { color: #5F6368 }
+.gr-lightbox { position: fixed; inset: 0; z-index: 2000; background: rgba(12, 10, 9, .92); display: flex; flex-direction: column }
+.gr-lb-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: #fff }
+.gr-lb-count { margin-right: auto; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums }
+.gr-lb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer }
+.gr-lb-btn:focus-visible { outline: 2px solid #FCD34D; outline-offset: 2px }
+.gr-lb-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 8px 12px 16px }
+.gr-lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px }
+
+@media (max-width: 1024px) {
+  .gr-detail-grid { grid-template-columns: minmax(0, 1fr) }
+}
+@media (max-width: 768px) {
+  .gr-toolbar-title { width: 100% }
+  .gr-toolbar .table-filter { flex: 1; min-width: 0 }
+  .gr-toolbar .table-filter select { width: 100% }
+  .gr-updated { text-align: left }
+  .gr-dl, .gr-dl-compact { grid-template-columns: minmax(0, 1fr) }
+  .gr-field dd { margin-bottom: 6px }
+  .gr-title { font-size: 17px }
+  .gr-lb-open { display: none }
+}
