@@ -88,7 +88,7 @@ Ada dua proyek Firebase. Kode yang sama, database berbeda.
 | Staging | `inzta-erp-staging` | Preview (semua branch selain `main`), alamat `inzta-dashboard-staging.vercel.app` dari branch `staging` | kosong, hanya data uji |
 
 - Variabel `NEXT_PUBLIC_FIREBASE_*` di Vercel: target Production berisi nilai `database-inzta`, target Preview berisi nilai `inzta-erp-staging`. Deploy preview tidak boleh memakai nilai produksi.
-- `CLOUDINARY_URL` (sensitive, Production dan Preview) berisi kredensial API Cloudinary untuk kode server. Jangan diberi awalan `NEXT_PUBLIC_` karena isinya rahasia.
+- Cloudinary: ERP mengunggah ke cloud `dvxnasm3s` lewat upload preset unsigned (`NEXT_PUBLIC_CLOUDINARY_*`) dan tidak memakai `CLOUDINARY_URL`. Cloud `rwmgljss` khusus foto klaim garansi dan hanya dipakai website. Jangan menambah kredensial API Cloudinary ke proyek Vercel ERP.
 - Untuk menjalankan lokal ke staging, isi `.env.local` dengan konfigurasi web app `inzta-erp-staging` (Firebase Console → Project Settings → Your apps).
 - Rules dan index Firestore disimpan di `firestore.rules` dan `firestore.indexes.json`. Deploy ke staging: `npx firebase-tools deploy --only firestore --project staging`. Deploy ke produksi hanya setelah disetujui, dengan `--project production`.
 - `firestore/schema.json` mencatat nama dan tipe field setiap koleksi (diambil dari produksi tanpa nilai). Firestore tidak punya skema, jadi file ini menjadi acuan.
