@@ -415,10 +415,7 @@ function warrantyOnNavigate(page) {
 
 function grHasDraft(kind) {
    var d = grCaptureDraft(kind);
-   if (!d) return false;
-   var item = gr[kind].detail;
-   var savedInternal = kind === "masukan" && item ? String(item.internalNote || "") : "";
-   return d.publicNote.trim() !== "" || d.internalNote.trim() !== savedInternal.trim();
+   return !!d && (d.publicNote !== undefined || d.internalNote !== undefined);
 }
 
 function renderGaransi() {
@@ -1033,7 +1030,12 @@ function grCaptureDraft(kind) {
    if (!page) return null;
    var pub = page.querySelector("#" + kind + "PublicNote");
    var internal = page.querySelector("#" + kind + "InternalNote");
-   return { publicNote: pub ? pub.value : "", internalNote: internal ? internal.value : "" };
+   var item = gr[kind].detail;
+   var storedInternal = kind === "masukan" && item ? String(item.internalNote || "") : "";
+   var draft = {};
+   if (pub && pub.value.trim() !== "") draft.publicNote = pub.value;
+   if (internal && internal.value.trim() !== storedInternal.trim()) draft.internalNote = internal.value;
+   return draft;
 }
 
 function grRestoreDraft(kind, draft) {
@@ -1073,6 +1075,8 @@ async function grSave(kind, form) {
       });
       var updated = data[cfg.itemKey];
       s.saving = false;
+      var shown = grCurrentForm(kind);
+      if (shown) grSetSaving(shown, false);
       if (!stillHere()) {
          if (updated && updated[cfg.idKey] === savedId) {
             grAdjustNewCount(kind, before.status, updated.status);
@@ -1099,6 +1103,8 @@ async function grSave(kind, form) {
       if (wa && built.body.status) wa.focus();
    } catch (e) {
       s.saving = false;
+      var current = grCurrentForm(kind);
+      if (current) grSetSaving(current, false);
       // The user already left this ticket: never reload or restore its notes into another one.
       if (!stillHere()) {
          if (e.status === 409 || e.status === 401 || e.status === 403) toast(e.message, "error");
@@ -1109,11 +1115,12 @@ async function grSave(kind, form) {
          toast(e.message, "error");
          s.justSaved = false;
          await grLoadDetail(kind, draft);
-         var again = grPage(kind) && grPage(kind).querySelector("[data-gr-form]");
+         if (!stillHere()) return;
+         var again = grCurrentForm(kind);
          if (again) grFormError(again, e.message + " Data terbaru sudah dimuat; catatan Anda tidak hilang.");
          return;
       }
-      grSetSaving(form, false);
+      var target = current || form;
       var fieldText = e.fields
          ? Object.keys(e.fields)
               .map(function (k) {
@@ -1122,9 +1129,14 @@ async function grSave(kind, form) {
               .join(" ")
          : "";
       var detail = fieldText || e.detail;
-      grFormError(form, e.message + (detail ? " " + detail.slice(0, 400) : ""));
+      grFormError(target, e.message + (detail ? " " + detail.slice(0, 400) : ""));
       if (e.status === 401 || e.status === 403) toast(e.message, "error");
    }
+}
+
+function grCurrentForm(kind) {
+   var page = grPage(kind);
+   return page ? page.querySelector("[data-gr-form]") : null;
 }
 
 function grSetSaving(form, saving) {
