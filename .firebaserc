@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "inzta-erp-staging",
+    "staging": "inzta-erp-staging",
+    "production": "database-inzta"
+  }
+}
