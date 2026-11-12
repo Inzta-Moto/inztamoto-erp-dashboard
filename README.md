@@ -88,7 +88,7 @@ Ada dua proyek Firebase. Kode yang sama, database berbeda.
 | Staging | `inzta-erp-staging` | Preview (semua branch selain `main`), alamat `inzta-dashboard-staging.vercel.app` dari branch `staging` | kosong, hanya data uji |
 
 - Variabel `NEXT_PUBLIC_FIREBASE_*` di Vercel: target Production berisi nilai `database-inzta`, target Preview berisi nilai `inzta-erp-staging`. Deploy preview tidak boleh memakai nilai produksi.
-- `CLOUDINARY_URL` (sensitive, Production dan Preview) berisi kredensial API Cloudinary untuk kode server. Jangan diberi awalan `NEXT_PUBLIC_` karena isinya rahasia.
+- Cloudinary: ERP mengunggah ke cloud `dvxnasm3s` lewat upload preset unsigned (`NEXT_PUBLIC_CLOUDINARY_*`) dan tidak memakai `CLOUDINARY_URL`. Cloud `rwmgljss` khusus foto klaim garansi dan hanya dipakai website. Jangan menambah kredensial API Cloudinary ke proyek Vercel ERP.
 - Untuk menjalankan lokal ke staging, isi `.env.local` dengan konfigurasi web app `inzta-erp-staging` (Firebase Console → Project Settings → Your apps).
 - Rules dan index Firestore disimpan di `firestore.rules` dan `firestore.indexes.json`. Deploy ke staging: `npx firebase-tools deploy --only firestore --project staging`. Deploy ke produksi hanya setelah disetujui, dengan `--project production`.
 - `firestore/schema.json` mencatat nama dan tipe field setiap koleksi (diambil dari produksi tanpa nilai). Firestore tidak punya skema, jadi file ini menjadi acuan.
@@ -116,6 +116,22 @@ Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authen
 1. Gabungkan perubahan yang mau diuji ke branch `staging`.
 2. Vercel → proyek `inztamoto-erp-dashboard` → Deployments → **Create Deployment** → pilih branch `staging`. Jangan centang production.
 3. Alamat preview lain (per deploy) tidak bisa dipakai login sampai domainnya ditambahkan di Firebase Console `inzta-erp-staging` → Authentication → Settings → Authorized domains.
+
+---
+
+## Hemat baca Firestore (jendela data)
+
+Firestore paket Spark memberi 50.000 baca per hari. Sebelumnya setiap kali ERP dibuka dari awal, seluruh isi `sales`, `production_purchases`, dan koleksi lain dibaca (sekitar 2.700 baca per buka pada 12 Nov 2026), dan kuota terlampaui di 4 dari 30 hari.
+
+Cara kerjanya sekarang (`public/legacy/sales-window.js`, bagian "Read window" di `public/legacy/app-runtime.js`):
+
+- Listener `sales`, `production_purchases`, dan `stock_movements` hanya memuat **bulan ini dan bulan lalu**.
+- Data yang lebih lama dibaca **sekali per sesi**, hanya bila dibutuhkan: filter Penjualan ke bulan lama atau "Semua", Laporan untuk periode lama, Export, Riwayat Stok "Arsip"/"Semua", dan halaman Belanja Produksi.
+- Grafik Dashboard (Distribusi Channel, Kategori, Produk Terlaris, Tren, Pendapatan vs Biaya) memakai ringkasan bulanan di koleksi `sales_monthly` (satu dokumen per bulan yang sudah lewat). Ringkasan dibangun otomatis saat login pertama dan setiap ada bulan baru yang keluar dari jendela.
+- **Wajib:** kode apa pun yang menambah, mengubah, atau menghapus penjualan bertanggal sebelum bulan lalu harus memanggil `markSalesChanged([tanggal, ...])` supaya ringkasan bulan itu dibangun ulang. Form Catat Penjualan, edit, dan hapus sudah melakukannya; integrasi marketplace nanti juga harus. Sebagai pengaman, setiap kali data lama terbaca, ringkasan dicocokkan ulang dan diperbaiki bila berbeda.
+- Ringkasan bisa dihapus kapan saja (koleksi `sales_monthly`); ERP akan membangunnya lagi pada login berikutnya.
+
+Tes: `npm test` (termasuk `scripts/sales-window.test.cjs`, yang membuktikan grafik Dashboard dari ringkasan sama dengan dari transaksi asli).
 
 ---
 
