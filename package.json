@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test scripts/faktur-calc.test.cjs scripts/sales-window.test.cjs"
+    "test": "node --test scripts/faktur-calc.test.cjs scripts/sales-window.test.cjs scripts/marketplace-tiktok.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.4.0",

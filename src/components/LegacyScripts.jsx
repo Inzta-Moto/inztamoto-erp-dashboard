@@ -62,6 +62,7 @@ export default function LegacyScripts() {
         await loadScript("/legacy/faktur-calc.js");
         await loadScript("/legacy/faktur.js");
         await loadScript("/legacy/garansi.js");
+        await loadScript("/legacy/marketplace.js");
       } catch (error) {
         console.error("[Inztamoto Legacy Runtime]", error);
       }
