@@ -633,6 +633,7 @@ function cleanupAppSession() {
    state.lazyListening = {};
    state.investor.listening = false;
    if (typeof fakturCleanup === "function") fakturCleanup();
+   if (typeof warrantyCleanup === "function") warrantyCleanup();
    appInitialized = false;
    state.user = null;
 }
@@ -745,6 +746,13 @@ function updateNavigationAccess() {
       investorPurchaseMenu.style.display = isOwnerOrAdmin ? "" : "none";
    const fakturMenu = $("#menuFaktur");
    if (fakturMenu) fakturMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   // garansi.js loads after this file and re-runs this function once it is ready.
+   const warrantyOn =
+      isOwnerOrAdmin && typeof warrantyEnabled === "function" && warrantyEnabled();
+   const garansiMenu = $("#menuGaransi");
+   if (garansiMenu) garansiMenu.style.display = warrantyOn ? "" : "none";
+   const masukanMenu = $("#menuMasukan");
+   if (masukanMenu) masukanMenu.style.display = warrantyOn ? "" : "none";
 }
 
 /* =========================================================
@@ -1363,6 +1371,8 @@ const TITLES = {
    investor: "Investor",
    belanjaInvestasi: "Belanja Investasi",
    faktur: "Faktur",
+   garansi: "Garansi",
+   masukan: "Masukan",
 };
 
 function navigateTo(page) {
@@ -1411,6 +1421,16 @@ function navigateTo(page) {
       toast("Akses Faktur hanya untuk Owner atau Admin", "error");
       page = "dashboard";
    }
+   if (page === "garansi" || page === "masukan") {
+      const _roleForWarranty = getCurrentUserRole();
+      if (_roleForWarranty !== "owner" && _roleForWarranty !== "admin") {
+         toast("Akses Garansi dan Masukan hanya untuk Owner atau Admin", "error");
+         page = "dashboard";
+      } else if (typeof warrantyEnabled !== "function" || !warrantyEnabled()) {
+         toast("Menu Garansi belum aktif di ERP ini", "error");
+         page = "dashboard";
+      }
+   }
    updateNavigationAccess();
    ensureListenersForPage(page);
    state.currentPage = page;
@@ -1422,6 +1442,8 @@ function navigateTo(page) {
    );
    $("#pageTitle").textContent = TITLES[page] || page;
    renderCurrentPage();
+   // Garansi and Masukan render on entry only: listener-driven renderCurrentPage() calls must not wipe a half-typed note.
+   if (typeof warrantyOnNavigate === "function") warrantyOnNavigate(page);
    if (page === "kategori") renderCategories();
    if (page === "pengguna") renderUsers();
    if (page === "reseller") renderResellers();

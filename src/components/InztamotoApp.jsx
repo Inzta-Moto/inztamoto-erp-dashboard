@@ -190,6 +190,14 @@ export default function InztamotoApp() {
                   <a href="#" className="nav-item" data-page="faktur" id="menuFaktur" style={{ display: "none" }}>
                      <i className="fas fa-file-invoice"></i>Faktur
                   </a>
+                  <a href="#" className="nav-item" data-page="garansi" id="menuGaransi" style={{ display: "none" }}>
+                     <i className="fas fa-shield-halved"></i>Garansi
+                     <span className="nav-count" id="garansiBadge" style={{ display: "none" }}></span>
+                  </a>
+                  <a href="#" className="nav-item" data-page="masukan" id="menuMasukan" style={{ display: "none" }}>
+                     <i className="fas fa-comment-dots"></i>Masukan
+                     <span className="nav-count" id="masukanBadge" style={{ display: "none" }}></span>
+                  </a>
                   <a href="#" className="nav-item" data-page="produk">
                      <i className="fas fa-box"></i>Produk
                   </a>
@@ -718,6 +726,16 @@ export default function InztamotoApp() {
                   {/* Faktur: invoices for customers and resellers, spec .kiro/specs/faktur */}
                   <div className="page" id="pageFaktur">
                      {/* Rendered dynamically by renderFaktur() in public/legacy/faktur.js */}
+                  </div>
+
+                  {/* Garansi: warranty claims stored on inzta.id, read through its ERP API (F-031) */}
+                  <div className="page" id="pageGaransi">
+                     {/* Rendered dynamically by renderGaransi() in public/legacy/garansi.js */}
+                  </div>
+
+                  {/* Masukan: customer feedback stored on inzta.id, read through its ERP API (F-031) */}
+                  <div className="page" id="pageMasukan">
+                     {/* Rendered dynamically by renderMasukan() in public/legacy/garansi.js */}
                   </div>
 
                   {/* Belanja Investasi: purchases paid from the investment, kept apart from Belanja Produksi */}
