@@ -797,17 +797,9 @@ function initFirebaseListeners() {
       );
    state.listeners.push(unsubProd);
 
-   const unsubSale = db
-      .collection("sales")
-      .orderBy("date", "desc")
-      .onSnapshot(
-         (snap) => {
-            state.sales = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            renderCurrentPage();
-         },
-         (err) => console.error("Sales listener error:", err),
-      );
-   state.listeners.push(unsubSale);
+   resetReadWindow();
+   state.listeners.push(listenWindowed("sales", renderCurrentPage));
+   state.listeners.push(listenSalesSummaries());
 
    const unsubProdOrder = db
       .collection("production")
@@ -824,20 +816,7 @@ function initFirebaseListeners() {
       );
    state.listeners.push(unsubProdOrder);
 
-   const unsubPP = db
-      .collection("production_purchases")
-      .orderBy("date", "desc")
-      .onSnapshot(
-         (snap) => {
-            state.productionPurchases = snap.docs.map((d) => ({
-               id: d.id,
-               ...d.data(),
-            }));
-            renderCurrentPage();
-         },
-         (err) => console.error("Production purchases listener error:", err),
-      );
-   state.listeners.push(unsubPP);
+   state.listeners.push(listenWindowed("production_purchases", renderCurrentPage));
 
    const unsubPayroll = db
       .collection("payrolls")
@@ -886,23 +865,298 @@ function initFirebaseListeners() {
    seedIfEmpty();
 }
 
+// ---- Read window (hemat baca Firestore) ----
+// sales, stock_movements and production_purchases grow every day and used to be read in full at every
+// login (about 2,700 reads per fresh open on 12 Nov 2026). Their listeners now keep only the current and the
+// previous month. Older rows are read once per session, only when a page, report or export asks for them,
+// and the Dashboard charts use the sales_monthly summaries (one document per closed month) instead.
+// Anything that writes a sale dated before the window must call markSalesChanged() so the summary of that
+// month is rebuilt (the sale form, edit and delete do; a future marketplace sync must too).
+const READ_WINDOW = {
+   startMonth: SalesWindow.windowStartMonth(today),
+   startDate: SalesWindow.windowStartDate(today),
+};
+
+const WINDOWED = {
+   sales: { stateKey: "sales" },
+   stock_movements: { stateKey: "stockMovements" },
+   production_purchases: { stateKey: "productionPurchases" },
+};
+
+let summaryWork = {};
+let summaryRebuildTimer = null;
+
+function resetReadWindow() {
+   Object.keys(WINDOWED).forEach(function (name) {
+      var w = WINDOWED[name];
+      w.live = [];
+      w.old = [];
+      w.loaded = false;
+      w.loading = null;
+      w.failedAt = 0;
+      state[w.stateKey] = [];
+   });
+   state.salesSummaries = {};
+   state.salesSummariesReady = false;
+   state.salesAggCache = null;
+   summaryWork = {};
+   if (summaryRebuildTimer) clearTimeout(summaryRebuildTimer);
+   summaryRebuildTimer = null;
+}
+
+function docsOf(snap) {
+   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+function setWindowedRows(name, part, rows) {
+   const w = WINDOWED[name];
+   w[part] = rows;
+   // live rows are dated on or after the window start and old rows before it, both newest first, so the
+   // joined list keeps the "date desc" order the pages relied on.
+   state[w.stateKey] = w.live.concat(w.old);
+   if (name === "sales") state.salesAggCache = null;
+}
+
+function listenWindowed(name, onChange) {
+   return db
+      .collection(name)
+      .where("date", ">=", READ_WINDOW.startDate)
+      .orderBy("date", "desc")
+      .onSnapshot(
+         (snap) => {
+            setWindowedRows(name, "live", docsOf(snap));
+            onChange();
+         },
+         (err) => console.error(name + " listener error:", err),
+      );
+}
+
+function readErrorText(err, what) {
+   return err && err.code === "resource-exhausted"
+      ? "Kuota baca harian database sudah habis, " + what + " belum bisa dimuat. Coba lagi setelah kuota direset, sekitar pukul 14.00 sampai 15.00 WIB."
+      : "Gagal memuat " + what + ": " + (err && err.message ? err.message : err);
+}
+
+// Rows dated before the window: read once per session, then kept live so edits on old rows show up.
+function ensureHistory(name) {
+   const w = WINDOWED[name];
+   if (w.loaded) return Promise.resolve();
+   if (w.loading) return w.loading;
+   w.loading = new Promise((resolve, reject) => {
+      let first = true;
+      const unsub = db
+         .collection(name)
+         .where("date", "<", READ_WINDOW.startDate)
+         .orderBy("date", "desc")
+         .onSnapshot(
+            (snap) => {
+               setWindowedRows(name, "old", docsOf(snap));
+               if (first) {
+                  first = false;
+                  w.loaded = true;
+                  w.loading = null;
+                  w.failedAt = 0;
+                  resolve();
+               }
+               if (name === "sales") reconcileSummariesFromHistory();
+               renderCurrentPage();
+            },
+            (err) => {
+               console.error(name + " history error:", err);
+               if (!first) return;
+               first = false;
+               w.loading = null;
+               w.failedAt = Date.now();
+               toast(readErrorText(err, "data lama"), "error");
+               reject(err);
+               renderCurrentPage();
+            },
+         );
+      state.listeners.push(unsub);
+   });
+   return w.loading;
+}
+
+// For views: true while the rows they need are not loaded yet (the view then shows historyNotice()).
+function waitForHistory(names, needed) {
+   if (!needed) return false;
+   const pending = names.filter((n) => !WINDOWED[n].loaded);
+   if (!pending.length) return false;
+   pending.forEach((n) => {
+      const w = WINDOWED[n];
+      if (w.failedAt && Date.now() - w.failedAt < 60000) return;
+      ensureHistory(n).catch(() => {});
+   });
+   return true;
+}
+
+function historyNotice(names) {
+   const failed = names.some((n) => WINDOWED[n].failedAt && !WINDOWED[n].loaded);
+   return failed
+      ? '<div class="empty-state"><i class="fas fa-triangle-exclamation"></i><h4>Data lama belum bisa dimuat</h4><p>Periode ini memakai data sebelum ' +
+           READ_WINDOW.startDate +
+           ". Coba lagi beberapa saat lagi.</p></div>"
+      : '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><h4>Memuat data lama...</h4><p>Periode ini memakai data sebelum ' +
+           READ_WINDOW.startDate +
+           ", yang dibaca sekali per sesi.</p></div>";
+}
+
+// For exports and checks that must see every row in the requested range.
+function ensureHistoryFor(names, needed) {
+   if (!needed) return Promise.resolve();
+   return Promise.all(names.map((n) => ensureHistory(n)));
+}
+
+// ---- Monthly sales summaries for the Dashboard charts ----
+function salesMonthQuery(month) {
+   return db
+      .collection("sales")
+      .where("date", ">=", month + "-01")
+      .where("date", "<", SalesWindow.addMonths(month, 1) + "-01");
+}
+
+function saveSalesSummary(month, sales) {
+   const summary = SalesWindow.buildMonthSummary(month, sales);
+   summary.builtAt = new Date().toISOString();
+   summary.builtBy = auth.currentUser ? auth.currentUser.uid : "";
+   summary.stale = false;
+   return db.collection("sales_monthly").doc(month).set(summary);
+}
+
+function rebuildSummaryMonth(month) {
+   if (summaryWork[month]) return summaryWork[month];
+   const rows = WINDOWED.sales.loaded ? WINDOWED.sales.old : null;
+   const read = rows ? Promise.resolve(rows) : salesMonthQuery(month).get().then(docsOf);
+   summaryWork[month] = read
+      .then((sales) => saveSalesSummary(month, sales))
+      .catch((err) => console.error("Sales summary " + month + " error:", err))
+      .finally(() => {
+         delete summaryWork[month];
+      });
+   return summaryWork[month];
+}
+
+function listenSalesSummaries() {
+   return db.collection("sales_monthly").onSnapshot(
+      (snap) => {
+         const docs = {};
+         snap.forEach((d) => {
+            docs[d.id] = d.data();
+         });
+         state.salesSummaries = docs;
+         state.salesAggCache = null;
+         const firstLoad = !state.salesSummariesReady;
+         state.salesSummariesReady = true;
+         planSalesSummaries(firstLoad);
+         if (state.currentPage === "dashboard") renderDashboard();
+      },
+      (err) => console.error("Sales summaries listener error:", err),
+   );
+}
+
+// Builds what is missing or stale for the months before the window. With no summary at all the earliest
+// month is unknown, so the old sales are read once (as a history load) and every month is built from them.
+function planSalesSummaries(firstLoad) {
+   const docs = state.salesSummaries || {};
+   const valid = Object.keys(docs).filter((m) => m < READ_WINDOW.startMonth && SalesWindow.isValidSummary(docs[m]));
+   const broken = Object.keys(docs).filter((m) => m < READ_WINDOW.startMonth && !SalesWindow.isValidSummary(docs[m]));
+   const plan = SalesWindow.summaryPlan(valid, READ_WINDOW.startMonth);
+   if (plan.full) {
+      if (!firstLoad && !broken.length) return;
+      ensureHistory("sales").catch(() => {});
+      return;
+   }
+   const todo = plan.missing.concat(broken);
+   if (!todo.length) return;
+   if (summaryRebuildTimer) clearTimeout(summaryRebuildTimer);
+   summaryRebuildTimer = setTimeout(() => {
+      summaryRebuildTimer = null;
+      todo.forEach((m) => rebuildSummaryMonth(m));
+   }, 1500);
+}
+
+// When the old sales are loaded anyway, check every closed month against its summary for free and
+// rewrite the ones that differ (also covers sales written by something that did not call markSalesChanged).
+function reconcileSummariesFromHistory() {
+   const old = WINDOWED.sales.old;
+   if (!WINDOWED.sales.loaded || !state.salesSummariesReady) return;
+   const months = {};
+   old.forEach((s) => {
+      const m = SalesWindow.monthOf(s.date);
+      if (m && m < READ_WINDOW.startMonth) months[m] = true;
+   });
+   Object.keys(state.salesSummaries || {}).forEach((m) => {
+      if (m < READ_WINDOW.startMonth) months[m] = true;
+   });
+   const sorted = Object.keys(months).sort();
+   if (!sorted.length) return;
+   SalesWindow.monthsBetween(sorted[0], READ_WINDOW.startMonth).forEach((m) => {
+      const fresh = SalesWindow.buildMonthSummary(m, old);
+      const doc = state.salesSummaries[m];
+      const same = SalesWindow.isValidSummary(doc) && SalesWindow.summarySignature(doc) === SalesWindow.summarySignature(fresh);
+      if (!same && !summaryWork[m]) {
+         summaryWork[m] = saveSalesSummary(m, old)
+            .catch((err) => console.error("Sales summary " + m + " error:", err))
+            .finally(() => {
+               delete summaryWork[m];
+            });
+      }
+   });
+}
+
+// Call after writing sales: months before the window get their summary marked stale and rebuilt.
+function markSalesChanged(dates) {
+   const months = {};
+   (dates || []).forEach((d) => {
+      const m = SalesWindow.monthOf(d);
+      if (m && m < READ_WINDOW.startMonth) months[m] = true;
+   });
+   Object.keys(months).forEach((m) => {
+      db.collection("sales_monthly")
+         .doc(m)
+         .set({ stale: true, staleAt: new Date().toISOString() }, { merge: true })
+         .catch((err) => console.error("Mark sales summary stale error:", err));
+   });
+}
+
+// Sales for the Dashboard charts: real rows when the history is loaded, otherwise the live window plus
+// one summary-made row per date, product and channel for each closed month.
+function getAggSales() {
+   const w = WINDOWED.sales;
+   if (w.loaded) return state.sales;
+   if (state.salesAggCache) return state.salesAggCache;
+   const rows = w.live.slice();
+   Object.keys(state.salesSummaries || {})
+      .sort()
+      .forEach((m) => {
+         const doc = state.salesSummaries[m];
+         if (m < READ_WINDOW.startMonth && SalesWindow.isValidSummary(doc)) {
+            SalesWindow.syntheticSales(Object.assign({ month: m }, doc)).forEach((r) => rows.push(r));
+         }
+      });
+   state.salesAggCache = rows;
+   return rows;
+}
+
+// Years that have sales, including closed months only known from their summary.
+function salesYears() {
+   const years = new Set();
+   state.sales.forEach((s) => {
+      const y = (s.date || "").substring(0, 4);
+      if (/^\d{4}$/.test(y)) years.add(y);
+   });
+   Object.keys(state.salesSummaries || {}).forEach((m) => {
+      const doc = state.salesSummaries[m];
+      if (doc && doc.saleCount > 0 && /^\d{4}-\d{2}$/.test(m)) years.add(m.substring(0, 4));
+   });
+   return years;
+}
+
 // Spec firestore-read-quota, Fase 2: these collections are used only by their own page, so they are read when that
 // page is first opened instead of at every login (about 1,600 reads saved when Stock Control stays closed).
 const LAZY_LISTENERS = {
    stock_movements: function () {
-      return db
-         .collection("stock_movements")
-         .orderBy("date", "desc")
-         .onSnapshot(
-            (snap) => {
-               state.stockMovements = snap.docs.map((d) => ({
-                  id: d.id,
-                  ...d.data(),
-               }));
-               renderCurrentPage();
-            },
-            (err) => console.error("Stock movements listener error:", err),
-         );
+      return listenWindowed("stock_movements", renderCurrentPage);
    },
    sponsorships: function () {
       return db
@@ -944,6 +1198,11 @@ const LAZY_LISTENERS = {
             },
          );
    },
+   // Not a listener of its own: loads the purchases before the read window once, then keeps them live.
+   production_purchases_history: function () {
+      ensureHistory("production_purchases").catch(function () {});
+      return function () {};
+   },
    users: function () {
       return db.collection("users").onSnapshot(
          (snap) => {
@@ -968,6 +1227,7 @@ const LAZY_LISTENERS = {
 
 const LAZY_LISTENERS_BY_PAGE = {
    inventaris: ["stock_movements"],
+   belanjaProduksi: ["production_purchases_history"],
    belanjaInvestasi: ["investor_purchases"],
    sponsorship: ["sponsorships"],
    pengguna: ["users"],
@@ -1582,7 +1842,7 @@ function getDailySalesTrendData() {
          day: "numeric",
          month: "short",
       });
-      const total = state.sales
+      const total = getAggSales()
          .filter((s) => s.date === key)
          .reduce((sum, s) => sum + getTrendValue(s), 0);
       labels.push(label);
@@ -1593,7 +1853,7 @@ function getDailySalesTrendData() {
 
 function getWeeklyTrendData() {
    const { month, year } = state.salesTrend;
-   const filtered = state.sales.filter((s) =>
+   const filtered = getAggSales().filter((s) =>
       matchesMonthYear(s.date, month, year),
    );
    // Group into week-of-month buckets (1-5)
@@ -1612,7 +1872,7 @@ function getWeeklyTrendData() {
 
 function getMonthlyTrendData() {
    const { year } = state.salesTrend;
-   const filtered = state.sales.filter((s) =>
+   const filtered = getAggSales().filter((s) =>
       matchesMonthYear(s.date, "all", year),
    );
    const MONTH_LABELS_SHORT = [
@@ -1804,7 +2064,7 @@ document.addEventListener("click", (e) => {
 function renderChannelChart() {
    if (state.charts.channel) state.charts.channel.destroy();
    const ch = {};
-   state.sales.forEach((s) => {
+   getAggSales().forEach((s) => {
       const channel = normalizeChannelValue(s.channel || "-");
       ch[channel] = (ch[channel] || 0) + (s.revenue || 0);
    });
@@ -1858,11 +2118,7 @@ function renderChannelChart() {
 }
 
 function getYearOptionsFromAllData() {
-   const years = new Set();
-   state.sales.forEach((s) => {
-      const y = (s.date || "").substring(0, 4);
-      if (/^\d{4}$/.test(y)) years.add(y);
-   });
+   const years = salesYears();
    state.production.forEach((p) => {
       const y = (p.date || "").substring(0, 4);
       if (/^\d{4}$/.test(y)) years.add(y);
@@ -1885,7 +2141,7 @@ function getDailyRevCostData() {
          day: "numeric",
          month: "short",
       });
-      const daySales = state.sales.filter((s) => s.date === key);
+      const daySales = getAggSales().filter((s) => s.date === key);
       const totalRev = daySales.reduce((sum, s) => sum + getTrendValue(s), 0);
       const totalCost = daySales.reduce(
          (sum, s) =>
@@ -1901,7 +2157,7 @@ function getDailyRevCostData() {
 
 function getWeeklyRevCostData() {
    const { month, year } = state.revCostTrend;
-   const filtered = state.sales.filter((s) =>
+   const filtered = getAggSales().filter((s) =>
       matchesMonthYear(s.date, month, year),
    );
    const bucketsRev = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -1935,7 +2191,7 @@ function getWeeklyRevCostData() {
 
 function getMonthlyRevCostData() {
    const { year } = state.revCostTrend;
-   const filtered = state.sales.filter((s) =>
+   const filtered = getAggSales().filter((s) =>
       matchesMonthYear(s.date, "all", year),
    );
    const MONTH_LABELS_SHORT = [
@@ -2307,7 +2563,7 @@ function renderProductionChart(range) {
 function renderCategoryChart() {
    if (state.charts.category) state.charts.category.destroy();
    const cs = {};
-   state.sales.forEach((s) => {
+   getAggSales().forEach((s) => {
       const p = state.products.find((x) => x.id === s.productId);
       if (p) {
          const cn = getCatName(p.categoryId);
@@ -2361,7 +2617,7 @@ function renderCategoryChart() {
 
 function renderTopSellingList() {
    const ps = {};
-   state.sales.forEach((s) => {
+   getAggSales().forEach((s) => {
       ps[s.productId] = (ps[s.productId] || 0) + (s.revenue || 0);
    });
    const sorted = Object.entries(ps)
@@ -3555,6 +3811,9 @@ function renderInventory() {
 function renderStockHistory() {
    const { search, filter, page, perPage } = state.stockHistory;
 
+   // "Arsip" and "Semua" reach movements before the read window, read once per session.
+   const historyWaiting = waitForHistory(["stock_movements"], filter !== "bulan_ini");
+
    // Base: exclude soft-deleted
    let movements = state.stockMovements.filter((m) => !m.deleted);
 
@@ -3617,7 +3876,9 @@ function renderStockHistory() {
     </div>`;
 
    // ---- Render rows ----
-   const rows = items.length
+   const rows = historyWaiting
+      ? `<tr><td colspan="7">${historyNotice(["stock_movements"])}</td></tr>`
+      : items.length
       ? items
            .map((m) => {
               const typeBadge = `<span class="badge ${m.type === "in" ? "badge-active" : "badge-out_of_stock"}">${m.type === "in" ? "Masuk" : "Keluar"}</span>`;
@@ -3999,6 +4260,23 @@ function renderSales() {
       } else {
          resellerGroup.style.display = "none";
       }
+   }
+
+   // A month, year or date before the read window needs the old sales, read once per session. "Semua" dates
+   // also do, because renderDailySalesStats then totals every sale.
+   if (
+      waitForHistory(
+         ["sales"],
+         !state.sale.date ||
+            state.sale.date === "all" ||
+            SalesWindow.filterNeedsHistory(state.sale.month, state.sale.year, state.sale.date, READ_WINDOW.startDate),
+      )
+   ) {
+      populateSalePeriodFilters();
+      $("#saleBody").innerHTML = `<tr><td colspan="11">${historyNotice(["sales"])}</td></tr>`;
+      if ($("#saleInfo")) $("#saleInfo").textContent = "";
+      if ($("#salePag")) $("#salePag").innerHTML = "";
+      return;
    }
 
    let list = [...state.sales].sort((a, b) =>
@@ -4586,6 +4864,7 @@ window.saveEditSalesOrder = async function (docId) {
       );
 
       await batch.commit();
+      markSalesChanged([oldSale.date, $("#fEditSaleDate").value]);
       toast("Penjualan berhasil diupdate", "success");
       closeModal();
       renderSales();
@@ -4640,11 +4919,16 @@ window.saveSale = async function () {
    const saleDate = $("#fSaleDate").value;
 
    try {
-      const txNum =
-         state.sales.length > 0
-            ? parseInt((state.sales[0].txNumber || "TXN-00100").split("-")[1]) +
-              1
-            : 1001;
+      // The live window can be empty at the start of a quiet month, so fall back to the newest sale overall
+      // (one read) instead of restarting the numbering at TXN-01001.
+      let latestSale = state.sales[0];
+      if (!latestSale) {
+         const latestSnap = await db.collection("sales").orderBy("date", "desc").limit(1).get();
+         if (!latestSnap.empty) latestSale = latestSnap.docs[0].data();
+      }
+      const txNum = latestSale
+         ? parseInt((latestSale.txNumber || "TXN-00100").split("-")[1]) + 1
+         : 1001;
 
       const newStock = p.stock - qty;
       const newStatus =
@@ -4687,6 +4971,7 @@ window.saveSale = async function () {
          createdAt: new Date().toISOString(),
       };
       await db.collection("sales").add(sanitize(saleDoc));
+      markSalesChanged([saleDate]);
 
       const moveNote = expedition
          ? "Penjualan " + channel + " - " + expedition
@@ -4711,7 +4996,9 @@ window.saveSale = async function () {
 
 window.deleteSale = async function (id) {
    try {
+      const deleted = state.sales.find((s) => s.id === id);
       await db.collection("sales").doc(id).delete();
+      if (deleted) markSalesChanged([deleted.date]);
       toast("Transaksi dihapus", "success");
    } catch (err) {
       toast("Gagal: " + err.message, "error");
@@ -4779,6 +5066,11 @@ function getAvailableWeeks() {
 function renderBelanjaProduksi() {
    const container = $("#pageBelanjaProduksi");
    if (!container) return;
+   // The week list and open items span every month, so this page waits for the purchases before the window.
+   if (waitForHistory(["production_purchases"], true)) {
+      container.innerHTML = `<div class="card"><div class="card-body">${historyNotice(["production_purchases"])}</div></div>`;
+      return;
+   }
 
    const { search, week, status, month, page, perPage } = state.pp;
    const selectedWeek = week || getWeekKey(today);
@@ -7578,6 +7870,13 @@ function getReportChannel(type) {
    return REPORT_CHANNEL_TYPES.includes(type) ? state.report.channel || "all" : "all";
 }
 
+// Report types built from sales or purchases need the old rows when the period starts before the read window.
+function reportNeedsHistoryNow(type, period, month, year, date) {
+   if (["sales", "bestseller", "profit"].indexOf(type) === -1) return false;
+   const curToday = new Date().toISOString().split("T")[0];
+   return SalesWindow.reportNeedsHistory(period, month, year, date || state.report.date, curToday, READ_WINDOW.startDate);
+}
+
 // Filters the already-loaded sales listener data in memory; no extra Firestore reads.
 function filterReportSales(type, period, month, year, date) {
    const channel = getReportChannel(type);
@@ -7620,6 +7919,19 @@ function renderReports() {
    const { month, year, date } = state.report;
 
    syncReportPeriodVisibility();
+
+   // Periods before the read window need the old sales and purchases, read once per session.
+   if (waitForHistory(["sales", "production_purchases"], reportNeedsHistoryNow(type, period, month, year, date))) {
+      populateReportPeriodFilters();
+      populateReportChannelFilter(type);
+      $("#reportStats").innerHTML = "";
+      $("#reportDetail").innerHTML = historyNotice(["sales", "production_purchases"]);
+      if (state.charts.report) {
+         state.charts.report.destroy();
+         state.charts.report = null;
+      }
+      return;
+   }
 
    const reportChannel = getReportChannel(type);
    const rSales = filterReportSales(type, period, month, year, date);
@@ -8264,7 +8576,7 @@ function buildReportWorksheet(worksheet, { title, info, summary, columns, rows, 
    });
 }
 
-$("#exportCsvBtn").addEventListener("click", () => {
+$("#exportCsvBtn").addEventListener("click", async () => {
    if (typeof ExcelJS === "undefined") {
       toast("Library Excel belum termuat, coba lagi sebentar", "error");
       return;
@@ -8273,6 +8585,11 @@ $("#exportCsvBtn").addEventListener("click", () => {
    const period = $("#reportPeriod") ? $("#reportPeriod").value : (state.report.period || "monthly");
    state.report.period = period;
    const { month, year, date } = state.report;
+   try {
+      await ensureHistoryFor(["sales", "production_purchases"], reportNeedsHistoryNow(type, period, month, year, date));
+   } catch (err) {
+      return;
+   }
    const reportChannel = getReportChannel(type);
    const rSales = filterReportSales(type, period, month, year, date).sort((a, b) =>
       (a.date || "").localeCompare(b.date || ""),
@@ -8875,11 +9192,7 @@ const MONTH_OPTIONS = [
 ];
 
 function getYearOptionsFromSales() {
-   const years = new Set();
-   state.sales.forEach((s) => {
-      const y = (s.date || "").substring(0, 4);
-      if (/^\d{4}$/.test(y)) years.add(y);
-   });
+   const years = salesYears();
    years.add(String(new Date().getFullYear()));
    return [...years].sort((a, b) => b.localeCompare(a));
 }
@@ -8943,12 +9256,8 @@ function populateReportPeriodFilters() {
          `<option value="${m.value}" ${state.report.month === m.value ? "selected" : ""}>${m.label}</option>`,
    ).join("");
    monthSel.innerHTML = `<option value="all" ${state.report.month === "all" ? "selected" : ""}>Semua Bulan</option>${monthOpts}`;
-   // Year list drawn from all data sources
-   const years = new Set();
-   state.sales.forEach((s) => {
-      const y = (s.date || "").substring(0, 4);
-      if (/^\d{4}$/.test(y)) years.add(y);
-   });
+   // Year list drawn from all data sources (sales years include closed months known from their summary)
+   const years = salesYears();
    state.productionPurchases.forEach((p) => {
       const y = (p.date || "").substring(0, 4);
       if (/^\d{4}$/.test(y)) years.add(y);
@@ -9341,13 +9650,23 @@ window.toggleResellerStatus = async function (docId) {
    }
 };
 
-window.confirmDeleteReseller = function (docId) {
+window.confirmDeleteReseller = async function (docId) {
    var r = state.resellers.find(function (x) { return x.id === docId; });
    if (!r) return;
 
    var isReferenced = (state.sales || []).some(function (s) {
       return s.resellerId === docId;
    });
+   // Sales before the read window are not in memory, so ask Firestore for one (at most one read).
+   if (!isReferenced && !WINDOWED.sales.loaded) {
+      try {
+         var refSnap = await db.collection("sales").where("resellerId", "==", docId).limit(1).get();
+         isReferenced = !refSnap.empty;
+      } catch (err) {
+         toast(readErrorText(err, "riwayat transaksi reseller"), "error");
+         return;
+      }
+   }
 
    if (isReferenced) {
       var title = "Tidak Dapat Menghapus Reseller";
@@ -9424,7 +9743,15 @@ window.toggleResellerDropdown = function (isEdit, selectedResellerId) {
    }
 };
 
-window.exportResellerSales = function () {
+window.exportResellerSales = async function () {
+   try {
+      await ensureHistoryFor(
+         ["sales"],
+         SalesWindow.filterNeedsHistory(state.sale.month, state.sale.year, state.sale.date, READ_WINDOW.startDate),
+      );
+   } catch (err) {
+      return;
+   }
    let list = [...state.sales].sort((a, b) =>
       (b.date || "").localeCompare(a.date || "")
    );

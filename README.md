@@ -119,6 +119,22 @@ Akun login staging dibuat di Firebase Console proyek `inzta-erp-staging` (Authen
 
 ---
 
+## Hemat baca Firestore (jendela data)
+
+Firestore paket Spark memberi 50.000 baca per hari. Sebelumnya setiap kali ERP dibuka dari awal, seluruh isi `sales`, `production_purchases`, dan koleksi lain dibaca (sekitar 2.700 baca per buka pada 12 Nov 2026), dan kuota terlampaui di 4 dari 30 hari.
+
+Cara kerjanya sekarang (`public/legacy/sales-window.js`, bagian "Read window" di `public/legacy/app-runtime.js`):
+
+- Listener `sales`, `production_purchases`, dan `stock_movements` hanya memuat **bulan ini dan bulan lalu**.
+- Data yang lebih lama dibaca **sekali per sesi**, hanya bila dibutuhkan: filter Penjualan ke bulan lama atau "Semua", Laporan untuk periode lama, Export, Riwayat Stok "Arsip"/"Semua", dan halaman Belanja Produksi.
+- Grafik Dashboard (Distribusi Channel, Kategori, Produk Terlaris, Tren, Pendapatan vs Biaya) memakai ringkasan bulanan di koleksi `sales_monthly` (satu dokumen per bulan yang sudah lewat). Ringkasan dibangun otomatis saat login pertama dan setiap ada bulan baru yang keluar dari jendela.
+- **Wajib:** kode apa pun yang menambah, mengubah, atau menghapus penjualan bertanggal sebelum bulan lalu harus memanggil `markSalesChanged([tanggal, ...])` supaya ringkasan bulan itu dibangun ulang. Form Catat Penjualan, edit, dan hapus sudah melakukannya; integrasi marketplace nanti juga harus. Sebagai pengaman, setiap kali data lama terbaca, ringkasan dicocokkan ulang dan diperbaiki bila berbeda.
+- Ringkasan bisa dihapus kapan saja (koleksi `sales_monthly`); ERP akan membangunnya lagi pada login berikutnya.
+
+Tes: `npm test` (termasuk `scripts/sales-window.test.cjs`, yang membuktikan grafik Dashboard dari ringkasan sama dengan dari transaksi asli).
+
+---
+
 ## Struktur Folder
 
 ```
