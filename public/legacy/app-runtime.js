@@ -746,6 +746,8 @@ function updateNavigationAccess() {
       investorPurchaseMenu.style.display = isOwnerOrAdmin ? "" : "none";
    const fakturMenu = $("#menuFaktur");
    if (fakturMenu) fakturMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   const marketplaceMenu = $("#menuMarketplace");
+   if (marketplaceMenu) marketplaceMenu.style.display = isOwnerOrAdmin ? "" : "none";
    // garansi.js loads after this file and re-runs this function once it is ready.
    const warrantyOn =
       isOwnerOrAdmin && typeof warrantyEnabled === "function" && warrantyEnabled();
@@ -1373,6 +1375,7 @@ const TITLES = {
    faktur: "Faktur",
    garansi: "Garansi",
    masukan: "Masukan",
+   marketplace: "Marketplace",
 };
 
 function navigateTo(page) {
@@ -1431,6 +1434,13 @@ function navigateTo(page) {
          page = "dashboard";
       }
    }
+   if (page === "marketplace") {
+      const _roleForMarketplace = getCurrentUserRole();
+      if (_roleForMarketplace !== "owner" && _roleForMarketplace !== "admin") {
+         toast("Akses Marketplace hanya untuk Owner atau Admin", "error");
+         page = "dashboard";
+      }
+   }
    updateNavigationAccess();
    ensureListenersForPage(page);
    state.currentPage = page;
@@ -1444,6 +1454,7 @@ function navigateTo(page) {
    renderCurrentPage();
    // Garansi and Masukan render on entry only: listener-driven renderCurrentPage() calls must not wipe a half-typed note.
    if (typeof warrantyOnNavigate === "function") warrantyOnNavigate(page);
+   if (typeof marketplaceOnNavigate === "function") marketplaceOnNavigate(page);
    if (page === "kategori") renderCategories();
    if (page === "pengguna") renderUsers();
    if (page === "reseller") renderResellers();
@@ -4389,6 +4400,9 @@ function renderDailySalesStats(dateStr) {
 
    const totalOrders = daySales.length;
    const totalQty = daySales.reduce((acc, s) => acc + (s.quantity || 0), 0);
+   // 4th card "Penjualan Shopee" (Bang Raja, 18 Nov 2026): Shopee-only revenue and pcs for the same period,
+   // summed from the sales the admin entered in the ERP. Stand-in until the Shopee API is approved.
+   const shopee = ChannelSummary.summarize(daySales, "Shopee");
 
    const dateLabel = isAll
       ? "Semua Periode"
@@ -4422,6 +4436,14 @@ function renderDailySalesStats(dateStr) {
          </div>
          <div class="sc-value">${totalOrders} <span style="font-size:14px;font-weight:500;">Order</span> <small style="font-size:13px;color:var(--text-muted);">(${totalQty} pcs)</small></div>
          <div class="sc-sub">Total Item Terjual</div>
+      </div>
+      <div class="stat-card shopee">
+         <div class="sc-top">
+            <div class="sc-icon"><i class="fas fa-bag-shopping"></i></div>
+            <span class="sc-label">Penjualan Shopee</span>
+         </div>
+         <div class="sc-value">${fmtRp(shopee.revenue)}</div>
+         <div class="sc-sub">Total terjual ${shopee.qty} pcs</div>
       </div>
    `;
 }

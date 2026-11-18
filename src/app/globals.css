@@ -1560,3 +1560,11 @@ body.fk-sheet-open { overflow: hidden }
   .gr-title { font-size: 17px }
   .gr-lb-open { display: none }
 }
+
+/* ===== KARTU PENJUALAN SHOPEE (kartu ke-4 di #dailySalesStats, halaman Penjualan) ===== */
+.stat-card.shopee .sc-icon { background: #FFF2E8; color: #C2410C }
+
+/* Kartu harian Penjualan: angka selalu satu baris ("Rp" tidak turun sendiri); ukuran huruf mengecil
+   mengikuti lebar kartu (cqi = 1% lebar isi kartu) supaya angka panjang tetap muat. */
+#dailySalesStats .stat-card { container-type: inline-size }
+#dailySalesStats .sc-value { white-space: nowrap; word-break: normal; font-size: min(24px, 11cqi) }

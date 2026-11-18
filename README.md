@@ -135,6 +135,41 @@ Tes: `npm test` (termasuk `scripts/sales-window.test.cjs`, yang membuktikan graf
 
 ---
 
+## Integrasi TikTok Shop / Tokopedia (menu Marketplace)
+
+Pesanan TikTok Shop dan Tokopedia (lewat API TikTok Shop sejak Dual Listing) ditarik ke koleksi `marketplace_orders` sekali sehari. Ini **belum** mencatat ke Penjualan: pencatatan menunggu tiga keputusan owner (status pesanan yang dicatat, harga yang dipakai, stok ikut berkurang atau tidak). Logika pencatatannya sudah ada dan dites di `src/lib/marketplace/order-to-sales.mjs`, tetapi belum dipanggil.
+
+Alur:
+
+1. Owner membuka menu **Marketplace** → **Sambungkan toko** → login dan setujui di TikTok → kembali ke ERP. Token disimpan terenkripsi (AES-256-GCM, kunci diturunkan dari `TIKTOK_APP_SECRET`) di `marketplace_connections/tiktok`, karena rules Firestore ERP membolehkan semua pengguna yang login membaca semua dokumen.
+2. Vercel Cron memanggil `GET /api/marketplace/tiktok/sync` setiap hari 17.00 UTC = 00.00 WIB (`vercel.json`; paket Hobby maksimal sekali sehari). Owner/Admin bisa menekan **Sinkronkan sekarang**.
+3. Sinkron mengambil pesanan yang berubah sejak sinkron terakhir (tumpang tindih 1 hari; sinkron pertama 30 hari ke belakang), lalu hanya menulis pesanan yang berubah. Nama, nomor HP, alamat, dan email pembeli **tidak pernah disimpan**.
+
+| Route | Siapa | Isi |
+|---|---|---|
+| `POST /api/marketplace/tiktok/connect` | Owner | Tautan izin TikTok dengan state sekali pakai (10 menit) |
+| `GET /api/marketplace/tiktok/callback` | TikTok | URL Pengalihan di Partner Center: `https://dashboard.inzta.id/api/marketplace/tiktok/callback` |
+| `GET /api/marketplace/tiktok/sync` | Vercel Cron (`CRON_SECRET`) | Sinkron harian |
+| `POST /api/marketplace/tiktok/sync` | Owner, Admin | Sinkron manual |
+| `GET /api/marketplace/tiktok/status` | Owner, Admin | Status sambungan dan 20 pesanan terbaru, tanpa token |
+| `POST /api/marketplace/tiktok/disconnect` | Owner | Hapus token dari ERP |
+
+Env di Vercel (diisi sendiri oleh pemegang akun, jangan lewat chat atau repo):
+
+| Variabel | Target | Isi |
+|---|---|---|
+| `TIKTOK_APP_KEY` | Production | Partner Center → app "Inzta ERP" → Kunci aplikasi |
+| `TIKTOK_APP_SECRET` | Production, Sensitive | Partner Center → Kelola rahasia apl |
+| `FIREBASE_SERVICE_ACCOUNT` | Production: key `database-inzta`; Preview: key `inzta-erp-staging`; Sensitive | Firebase Console → Project settings → Service accounts → Generate new private key, tempel isi JSON. Server menolak bila `project_id` beda dengan `NEXT_PUBLIC_FIREBASE_PROJECT_ID` |
+| `CRON_SECRET` | Production, Sensitive | String acak minimal 32 karakter. Tanpa ini sinkron otomatis ditolak (sinkron manual tetap jalan) |
+| `TIKTOK_SERVICE_ID` | opsional | ID app di tautan izin; bawaan `7706703201979336469` |
+
+Tes: `npm test` (`scripts/marketplace-tiktok.test.mjs`: tanda tangan, enkripsi token, pemetaan pesanan tanpa data pembeli, rencana pencatatan, OAuth state, sinkron, refresh token). Uji lokal lengkap bisa memakai Firebase Emulator (`FIRESTORE_EMULATOR_HOST` + `FIREBASE_AUTH_EMULATOR_HOST`, tanpa kredensial) dan server tiruan lewat `TIKTOK_AUTH_BASE` / `TIKTOK_API_BASE` (diabaikan di Production).
+
+Belum diverifikasi ke TikTok asli (menunggu app terbit): format tanda tangan, nama parameter `code` di callback, dan field `commerce_platform` untuk membedakan Tokopedia. Cek pertama setelah app terbit: sambungkan toko, Sinkronkan sekarang, cocokkan jumlah pesanan satu hari dengan Seller Center.
+
+---
+
 ## Struktur Folder
 
 ```
