@@ -848,6 +848,8 @@ export default function InztamotoApp() {
                      <div id="resellerAnalyticsContainer" style={{ display: "none", marginBottom: "18px" }}></div>
                      {/* Daily Performance Tracking Cards */}
                      <div className="stat-grid" id="dailySalesStats" style={{ marginBottom: "20px" }}></div>
+                     {/* Card "Penjualan Shopee": rendered by renderShopeeSalesCard() in app-runtime.js */}
+                     <div id="shopeeSalesCard" style={{ marginBottom: "20px" }}></div>
                      <div className="card">
                         <div className="table-toolbar">
                            <div className="table-search">
