@@ -50,11 +50,3 @@ test("empty or missing input gives zeros", () => {
    assert.deepEqual(C.summarize(undefined, "Shopee"), zero);
    assert.deepEqual(C.summarize([null], "Shopee"), zero);
 });
-
-test("sharePercent rounds, clamps and returns null without a total", () => {
-   assert.equal(C.sharePercent(2150000, 3080000), 70);
-   assert.equal(C.sharePercent(0, 3080000), 0);
-   assert.equal(C.sharePercent(100, 100), 100);
-   assert.equal(C.sharePercent(5, 0), null);
-   assert.equal(C.sharePercent(5, -10), null);
-});

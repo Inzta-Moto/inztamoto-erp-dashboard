@@ -1,4 +1,4 @@
-// Per-channel totals for the Penjualan page (card "Penjualan Shopee", Bang Raja 18 Nov 2026).
+// Per-channel totals for the Penjualan page (4th daily card "Penjualan Shopee", Bang Raja 18 Nov 2026).
 // Sums the sales the admin already entered in the ERP; no marketplace API, no extra Firestore read.
 // Pure functions only: no DOM and no Firestore, so scripts/channel-summary.test.cjs can run them under node --test.
 var ChannelSummary = (function () {
@@ -30,19 +30,11 @@ var ChannelSummary = (function () {
       return out;
    }
 
-   // Whole percent of `part` in `total`; null when there is no total to compare with.
-   function sharePercent(part, total) {
-      if (!total || total <= 0) return null;
-      var pct = Math.round((part / total) * 100);
-      return Math.max(0, Math.min(100, pct));
-   }
-
    return {
       saleRevenue: saleRevenue,
       saleProfit: saleProfit,
       matchesChannel: matchesChannel,
       summarize: summarize,
-      sharePercent: sharePercent,
    };
 })();
 
