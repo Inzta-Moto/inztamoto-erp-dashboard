@@ -4274,7 +4274,7 @@ function renderSales() {
    }
 
    // A month, year or date before the read window needs the old sales, read once per session. "Semua" dates
-   // also do, because renderDailySalesStats then totals every sale.
+   // also do, because the cards (renderDailySalesStats) then total every sale of the chosen month/year.
    if (
       waitForHistory(
          ["sales"],
@@ -4373,44 +4373,37 @@ function renderSales() {
          : "";
    $("#salePag").innerHTML = renderPaginationHTML(state.sale.page, total, "goSalePage");
    renderResellerAnalytics(list);
-   renderDailySalesStats(state.sale.date);
+   renderDailySalesStats();
    syncSaleDateFilterUI();
 }
 
-function renderDailySalesStats(dateStr) {
+// Cards above the Penjualan table (Bang Raja, 18 Nov 2026): the first three follow the table's Channel
+// (and Reseller), Bulan, Tahun and date filters, so they total exactly the rows the table lists (the search
+// box aside). The 4th card "Penjualan Shopee" covers the same period with the channel fixed to Shopee,
+// summed from the sales the admin entered in the ERP (stand-in until the Shopee API is approved).
+function renderDailySalesStats() {
    const container = $("#dailySalesStats");
    if (!container) return;
 
-   const activeDate = dateStr !== undefined ? dateStr : state.sale.date;
-   const isAll = !activeDate || activeDate === "all";
+   const f = state.sale;
+   const periodSales = ChannelSummary.filterSales(state.sales, {
+      month: f.month,
+      year: f.year,
+      date: f.date,
+   });
+   const cardSales = ChannelSummary.filterSales(periodSales, {
+      channel: f.channel,
+      resellerId: f.resellerId,
+   });
 
-   const daySales = isAll
-      ? state.sales
-      : state.sales.filter((s) => s.date === activeDate);
+   const totals = ChannelSummary.summarize(cardSales, "all");
+   const totalRevenue = totals.revenue;
+   const totalProfit = totals.profit;
+   const totalOrders = totals.orders;
+   const totalQty = totals.qty;
+   const shopee = ChannelSummary.summarize(periodSales, "Shopee");
 
-   const totalRevenue = daySales.reduce((acc, s) => {
-      const val = s.realRevenue !== undefined ? s.realRevenue : s.revenue || 0;
-      return acc + val;
-   }, 0);
-
-   const totalProfit = daySales.reduce((acc, s) => {
-      const val = s.realProfit !== undefined ? s.realProfit : s.profit || 0;
-      return acc + val;
-   }, 0);
-
-   const totalOrders = daySales.length;
-   const totalQty = daySales.reduce((acc, s) => acc + (s.quantity || 0), 0);
-   // 4th card "Penjualan Shopee" (Bang Raja, 18 Nov 2026): Shopee-only revenue and pcs for the same period,
-   // summed from the sales the admin entered in the ERP. Stand-in until the Shopee API is approved.
-   const shopee = ChannelSummary.summarize(daySales, "Shopee");
-
-   const dateLabel = isAll
-      ? "Semua Periode"
-      : activeDate === today
-        ? `Hari Ini (${formatDateIndo(today)})`
-        : activeDate === getYesterdayDateStr()
-          ? `Kemarin (${formatDateIndo(activeDate)})`
-          : formatDateIndo(activeDate);
+   const dateLabel = saleCardsPeriodLabel() + saleCardsChannelLabel();
 
    container.innerHTML = `
       <div class="stat-card gold">
@@ -4446,6 +4439,31 @@ function renderDailySalesStats(dateStr) {
          <div class="sc-sub">Total terjual ${shopee.qty} pcs</div>
       </div>
    `;
+}
+
+// "Hari Ini (18 Nov 2026)", "Kemarin (...)", a date, "Oktober 2026", "Oktober", "2026" or "Semua Periode".
+function saleCardsPeriodLabel() {
+   const { date, month, year } = state.sale;
+   if (date && date !== "all") {
+      if (date === today) return `Hari Ini (${formatDateIndo(today)})`;
+      if (date === getYesterdayDateStr()) return `Kemarin (${formatDateIndo(date)})`;
+      return formatDateIndo(date);
+   }
+   const m = month && month !== "all" ? MONTH_OPTIONS.find((o) => o.value === month) : null;
+   const y = year && year !== "all" ? year : "";
+   if (m || y) return [m ? m.label : "", y].filter(Boolean).join(" ");
+   return "Semua Periode";
+}
+
+// " · Tokopedia", " · Reseller: <nama>", or "" for Semua Channel.
+function saleCardsChannelLabel() {
+   const { channel, resellerId } = state.sale;
+   if (!channel || channel === "all") return "";
+   if (channel === "Reseller" && resellerId && resellerId !== "all") {
+      const r = (state.resellers || []).find((x) => x.id === resellerId);
+      return ` · Reseller: ${r ? investorEsc(r.name || "") : "-"}`;
+   }
+   return ` · ${channel}`;
 }
 
 function syncSaleDateFilterUI() {
