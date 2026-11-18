@@ -4400,6 +4400,9 @@ function renderDailySalesStats(dateStr) {
 
    const totalOrders = daySales.length;
    const totalQty = daySales.reduce((acc, s) => acc + (s.quantity || 0), 0);
+   // 4th card "Penjualan Shopee" (Bang Raja, 18 Nov 2026): Shopee-only revenue and pcs for the same period,
+   // summed from the sales the admin entered in the ERP. Stand-in until the Shopee API is approved.
+   const shopee = ChannelSummary.summarize(daySales, "Shopee");
 
    const dateLabel = isAll
       ? "Semua Periode"
@@ -4434,55 +4437,14 @@ function renderDailySalesStats(dateStr) {
          <div class="sc-value">${totalOrders} <span style="font-size:14px;font-weight:500;">Order</span> <small style="font-size:13px;color:var(--text-muted);">(${totalQty} pcs)</small></div>
          <div class="sc-sub">Total Item Terjual</div>
       </div>
-   `;
-
-   renderShopeeSalesCard(daySales, totalRevenue, dateLabel);
-}
-
-// Card "Penjualan Shopee" (Bang Raja, 18 Nov 2026): Shopee-only totals for the same period as the daily
-// cards, summed from the sales the admin entered in the ERP (channel = "Shopee"). Stand-in until the
-// Shopee API is approved. Always shown, whatever the Channel dropdown of the table says.
-function renderShopeeSalesCard(daySales, totalRevenue, dateLabel) {
-   const container = $("#shopeeSalesCard");
-   if (!container) return;
-
-   const s = ChannelSummary.summarize(daySales, "Shopee");
-   const pct = ChannelSummary.sharePercent(s.revenue, totalRevenue);
-   const pctText = pct === null ? "—" : `${pct}%`;
-   const barWidth = pct === null ? 0 : pct;
-
-   container.innerHTML = `
-      <section class="shopee-card" aria-labelledby="shopeeCardTitle">
-         <div class="shopee-card-head">
-            <div class="shopee-card-title">
-               <div class="sc-icon shopee-card-icon"><i class="fas fa-bag-shopping"></i></div>
-               <div>
-                  <h3 id="shopeeCardTitle">Penjualan Shopee</h3>
-                  <span class="shopee-card-period">${dateLabel}</span>
-               </div>
-            </div>
-            <span class="shopee-card-source">Sumber: data Penjualan ERP, channel Shopee</span>
+      <div class="stat-card shopee">
+         <div class="sc-top">
+            <div class="sc-icon"><i class="fas fa-bag-shopping"></i></div>
+            <span class="sc-label">Penjualan Shopee</span>
          </div>
-         <div class="shopee-card-grid">
-            <div class="shopee-metric">
-               <span class="shopee-metric-label">Pendapatan Shopee</span>
-               <span class="shopee-metric-value">${fmtRp(s.revenue)}</span>
-            </div>
-            <div class="shopee-metric">
-               <span class="shopee-metric-label">Estimasi Laba Shopee</span>
-               <span class="shopee-metric-value profit">${fmtRp(s.profit)}</span>
-            </div>
-            <div class="shopee-metric">
-               <span class="shopee-metric-label">Order Shopee</span>
-               <span class="shopee-metric-value">${s.orders} <small class="shopee-metric-unit">Order</small> <small class="shopee-metric-muted">(${s.qty} pcs)</small></span>
-            </div>
-            <div class="shopee-metric">
-               <span class="shopee-metric-label">Porsi dari Total Pendapatan</span>
-               <span class="shopee-metric-value">${pctText}</span>
-               <div class="shopee-share-bar" role="img" aria-label="Porsi Shopee ${pctText}"><span style="width:${barWidth}%"></span></div>
-            </div>
-         </div>
-      </section>
+         <div class="sc-value">${fmtRp(shopee.revenue)}</div>
+         <div class="sc-sub">Total terjual ${shopee.qty} pcs</div>
+      </div>
    `;
 }
 
