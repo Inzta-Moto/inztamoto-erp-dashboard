@@ -746,6 +746,8 @@ function updateNavigationAccess() {
       investorPurchaseMenu.style.display = isOwnerOrAdmin ? "" : "none";
    const fakturMenu = $("#menuFaktur");
    if (fakturMenu) fakturMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   const marketplaceMenu = $("#menuMarketplace");
+   if (marketplaceMenu) marketplaceMenu.style.display = isOwnerOrAdmin ? "" : "none";
    // garansi.js loads after this file and re-runs this function once it is ready.
    const warrantyOn =
       isOwnerOrAdmin && typeof warrantyEnabled === "function" && warrantyEnabled();
@@ -1373,6 +1375,7 @@ const TITLES = {
    faktur: "Faktur",
    garansi: "Garansi",
    masukan: "Masukan",
+   marketplace: "Marketplace",
 };
 
 function navigateTo(page) {
@@ -1431,6 +1434,13 @@ function navigateTo(page) {
          page = "dashboard";
       }
    }
+   if (page === "marketplace") {
+      const _roleForMarketplace = getCurrentUserRole();
+      if (_roleForMarketplace !== "owner" && _roleForMarketplace !== "admin") {
+         toast("Akses Marketplace hanya untuk Owner atau Admin", "error");
+         page = "dashboard";
+      }
+   }
    updateNavigationAccess();
    ensureListenersForPage(page);
    state.currentPage = page;
@@ -1444,6 +1454,7 @@ function navigateTo(page) {
    renderCurrentPage();
    // Garansi and Masukan render on entry only: listener-driven renderCurrentPage() calls must not wipe a half-typed note.
    if (typeof warrantyOnNavigate === "function") warrantyOnNavigate(page);
+   if (typeof marketplaceOnNavigate === "function") marketplaceOnNavigate(page);
    if (page === "kategori") renderCategories();
    if (page === "pengguna") renderUsers();
    if (page === "reseller") renderResellers();

@@ -256,6 +256,9 @@ export default function InztamotoApp() {
                   <a href="#" className="nav-item" data-page="laporan">
                      <i className="fas fa-file-lines"></i>Laporan
                   </a>
+                  <a href="#" className="nav-item" data-page="marketplace" id="menuMarketplace" style={{ display: "none" }}>
+                     <i className="fas fa-store"></i>Marketplace
+                  </a>
                   <div className="nav-label">Sistem</div>
                   <a href="#" className="nav-item" data-page="pengguna">
                      <i className="fas fa-users"></i>Pengguna
@@ -736,6 +739,11 @@ export default function InztamotoApp() {
                   {/* Masukan: customer feedback stored on inzta.id, read through its ERP API (F-031) */}
                   <div className="page" id="pageMasukan">
                      {/* Rendered dynamically by renderMasukan() in public/legacy/garansi.js */}
+                  </div>
+
+                  {/* Marketplace: TikTok Shop / Tokopedia connection and synced orders, via /api/marketplace/tiktok/* */}
+                  <div className="page" id="pageMarketplace">
+                     {/* Rendered dynamically by renderMarketplace() in public/legacy/marketplace.js */}
                   </div>
 
                   {/* Belanja Investasi: purchases paid from the investment, kept apart from Belanja Produksi */}
