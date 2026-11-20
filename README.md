@@ -137,6 +137,8 @@ Tes: `npm test` (termasuk `scripts/sales-window.test.cjs`, yang membuktikan graf
 
 ## Integrasi TikTok Shop / Tokopedia (menu Marketplace)
 
+> **Ditahan sejak 20 November 2026.** Verifikasi app di TikTok Shop Partner Center masih lama, jadi menu Marketplace disembunyikan (`MARKETPLACE_ENABLED = false` di `public/legacy/app-runtime.js`) dan cron sinkron harian dicabut dari `vercel.json`. Kode, route `/api/marketplace/tiktok/*`, dan tes tetap ada. Untuk menyalakan lagi: ubah flag ke `true` dan kembalikan entri cron `{"path": "/api/marketplace/tiktok/sync", "schedule": "0 17 * * *"}`.
+
 Pesanan TikTok Shop dan Tokopedia (lewat API TikTok Shop sejak Dual Listing) ditarik ke koleksi `marketplace_orders` sekali sehari. Ini **belum** mencatat ke Penjualan: pencatatan menunggu tiga keputusan owner (status pesanan yang dicatat, harga yang dipakai, stok ikut berkurang atau tidak). Logika pencatatannya sudah ada dan dites di `src/lib/marketplace/order-to-sales.mjs`, tetapi belum dipanggil.
 
 Alur:
