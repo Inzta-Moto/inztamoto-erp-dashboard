@@ -723,6 +723,10 @@ function updateUserDisplay(user) {
    updateNavigationAccess();
 }
 
+// Menu Marketplace (TikTok Shop / Tokopedia) ditahan: verifikasi app di TikTok Shop Partner Center masih lama.
+// Kode dan route /api/marketplace/tiktok/* tetap ada. Untuk menyalakan lagi: ubah ke true dan kembalikan cron di vercel.json.
+const MARKETPLACE_ENABLED = false;
+
 function updateNavigationAccess() {
    const role = getCurrentUserRole();
    const isOwner = role === "owner";
@@ -747,7 +751,8 @@ function updateNavigationAccess() {
    const fakturMenu = $("#menuFaktur");
    if (fakturMenu) fakturMenu.style.display = isOwnerOrAdmin ? "" : "none";
    const marketplaceMenu = $("#menuMarketplace");
-   if (marketplaceMenu) marketplaceMenu.style.display = isOwnerOrAdmin ? "" : "none";
+   if (marketplaceMenu)
+      marketplaceMenu.style.display = MARKETPLACE_ENABLED && isOwnerOrAdmin ? "" : "none";
    // garansi.js loads after this file and re-runs this function once it is ready.
    const warrantyOn =
       isOwnerOrAdmin && typeof warrantyEnabled === "function" && warrantyEnabled();
@@ -1436,7 +1441,10 @@ function navigateTo(page) {
    }
    if (page === "marketplace") {
       const _roleForMarketplace = getCurrentUserRole();
-      if (_roleForMarketplace !== "owner" && _roleForMarketplace !== "admin") {
+      if (!MARKETPLACE_ENABLED) {
+         toast("Menu Marketplace sedang ditahan", "warning");
+         page = "dashboard";
+      } else if (_roleForMarketplace !== "owner" && _roleForMarketplace !== "admin") {
          toast("Akses Marketplace hanya untuk Owner atau Admin", "error");
          page = "dashboard";
       }
